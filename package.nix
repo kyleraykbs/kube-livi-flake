@@ -52,7 +52,10 @@
   pnpm_11,
   nodejs,
   node-gyp,
-  electron_43,
+  electron,
+  # The app's devDependency is electron ^43.4.0; consumers on an older nixpkgs
+  # fall back to their default electron (N-API addons are ABI-stable).
+  electron_43 ? electron,
   asar,
   python3,
   python3Packages,
