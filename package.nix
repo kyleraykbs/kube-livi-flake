@@ -240,7 +240,11 @@ stdenv.mkDerivation {
   # app.asar.unpacked rewrite only resolves correctly with one. Hoisting also
   # matches what electron-builder packs.
   postPatch = ''
-    echo 'node-linker=hoisted' >> .npmrc
+    # Hoisted linker: the shipped app has a flat node_modules and gstHost.ts'
+    # app.asar -> app.asar.unpacked rewrite resolves only in a flat tree.
+    # confirm-modules-purge: older pnpm asks interactively before re-creating
+    # node_modules, which is fatal in a build sandbox.
+    printf 'node-linker=hoisted\nconfirm-modules-purge=false\n' >> .npmrc
 
     # The root postinstall (`electron-builder install-app-deps`) is a dev-time
     # rebuild step; the natives are built explicitly against the app's Electron
