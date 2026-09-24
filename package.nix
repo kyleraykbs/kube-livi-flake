@@ -236,6 +236,10 @@ stdenv.mkDerivation {
   ]
   ++ bundleLibs;
 
+  # The pnpm < 11 generations prompt interactively before purging node_modules
+  # (fatal in a sandbox) and only honour the CI variable for that.
+  CI = "true";
+
   # pnpm's isolated linker would leave node_modules/<pkg> as symlinks into
   # .pnpm; the shipped app carries a flat tree and gstHost.ts' app.asar ->
   # app.asar.unpacked rewrite only resolves correctly with one. Hoisting also
@@ -243,9 +247,11 @@ stdenv.mkDerivation {
   postPatch = ''
     # Hoisted linker: the shipped app has a flat node_modules and gstHost.ts'
     # app.asar -> app.asar.unpacked rewrite resolves only in a flat tree.
-    # confirm-modules-purge: older pnpm asks interactively before re-creating
-    # node_modules, which is fatal in a build sandbox.
+    # Modules purging must never prompt (older pnpm asks interactively, which is
+    # fatal in a build sandbox); the setting lives in .npmrc for older pnpm and
+    # in pnpm-workspace.yaml for the 11.x generation that reads settings there.
     printf 'node-linker=hoisted\nconfirm-modules-purge=false\n' >> .npmrc
+    printf '\nconfirmModulesPurge: false\n' >> pnpm-workspace.yaml
 
     # The root postinstall (`electron-builder install-app-deps`) is a dev-time
     # rebuild step; the natives are built explicitly against the app's Electron
