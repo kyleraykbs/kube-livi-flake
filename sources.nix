@@ -1,7 +1,16 @@
-# Upstream release pins. LIVI publishes one AppImage per architecture; each has
-# its own hash, so both live here rather than in the package expression.
-{
+# Upstream release pins. LIVI publishes one AppImage per architecture and each
+# has its own hash, so both live here rather than inside the package expression.
+# Bumping `version` means re-hashing both assets: `nix hash file --type sha256
+# --sri <appimage>`.
+let
   version = "8.2.1";
+
+  assetFor =
+    system:
+    if builtins.hasAttr system assets then
+      assets.${system}
+    else
+      throw "kube-livi: no LIVI release asset for ${system} (known: ${builtins.concatStringsSep ", " (builtins.attrNames assets)})";
 
   assets = {
     aarch64-linux = {
@@ -13,11 +22,16 @@
       hash = "sha256-EtApB9WQC3YrDFCyf0zymwQlfU2dwSzDl4bv1wfvZxs=";
     };
   };
+in
+{
+  inherit version assets;
 
   urlFor =
     system:
     let
-      asset = assets.${system} or (throw "kube-livi: no LIVI release asset for ${system}");
+      asset = assetFor system;
     in
     "https://github.com/f-io/LIVI/releases/download/v${version}/LIVI-${version}-linux-${asset.suffix}.AppImage";
+
+  hashFor = system: (assetFor system).hash;
 }

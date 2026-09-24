@@ -18,7 +18,7 @@
         pkgs.callPackage ./package.nix {
           inherit (sources) version;
           url = sources.urlFor pkgs.stdenv.hostPlatform.system;
-          hash = sources.assets.${pkgs.stdenv.hostPlatform.system}.hash;
+          hash = sources.hashFor pkgs.stdenv.hostPlatform.system;
         };
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
