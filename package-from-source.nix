@@ -64,12 +64,14 @@
   gst_all_1,
   # livi-compositor + the wlroots-0.20 subproject.
   wayland,
+  wayland-scanner,
   wayland-protocols,
   libxkbcommon,
   pixman,
   cairo,
   libdrm,
   libglvnd,
+  libgbm,
   mesa,
   # Copied into the bundle's lib dir at assembly (see header).
   libssh,
@@ -81,7 +83,7 @@
   elfutils,
   version ? "8.2.1",
   srcHash ? "sha256-9H17QoSleIJ/WWSFujz6HGdVuF90mxXovyXIxXkrPps=",
-  pnpmDepsHash ? "",
+  pnpmDepsHash ? "sha256-iRMCkqs6RFBhjbntf8ulwsajkN8JDf/NmbIeYtBI6T4=",
 }:
 
 let
@@ -154,6 +156,13 @@ stdenv.mkDerivation {
 
   patches = [ ./patches/0001-aa-typing-keys.patch ];
 
+  # meson/ninja are used explicitly in buildPhase for the compositor subproject;
+  # the root of the tree is not a meson project, so the meson hook must not
+  # claim the phases.
+  dontUseMesonConfigure = true;
+  dontUseNinjaBuild = true;
+  dontUseNinjaInstall = true;
+
   pnpmDeps = fetchPnpmDeps {
     pname = "livi";
     inherit version;
@@ -176,6 +185,7 @@ stdenv.mkDerivation {
     node-gyp
     python3
     pkg-config
+    wayland-scanner
     meson
     ninja
     asar
@@ -191,6 +201,7 @@ stdenv.mkDerivation {
     cairo
     libdrm
     libglvnd
+    libgbm
     mesa
   ]
   ++ bundleLibs;
@@ -202,6 +213,12 @@ stdenv.mkDerivation {
   postPatch = ''
     echo 'node-linker=hoisted' >> .npmrc
 
+    # The root postinstall (`electron-builder install-app-deps`) is a dev-time
+    # rebuild step; the natives are built explicitly against the app's Electron
+    # headers in buildPhase. `prepare` is husky. Dropping both keeps any pnpm
+    # invocation (prune re-runs lifecycle scripts) from clobbering them.
+    npm pkg delete scripts.postinstall scripts.prepare
+
     # Upstream forces the pinned wlroots subproject from a wrap-git; build the
     # same subproject from the released tarball offline, with LIVI's two
     # patches applied, and let meson find it pre-extracted.
@@ -209,7 +226,7 @@ stdenv.mkDerivation {
     mkdir -p $sub/packagecache
     cp ${wlrootsSrc} $sub/packagecache/wlroots-${wlrootsVersion}.tar.gz
     tar -xf ${wlrootsSrc} -C $sub
-    for diff in $sub/packagefiles/*.patch; do
+    for diff in "$PWD"/$sub/packagefiles/*.patch; do
       patch -d $sub/wlroots-${wlrootsVersion} -p1 -i "$diff"
     done
     cat > $sub/wlroots.wrap <<'EOF'
@@ -255,8 +272,10 @@ EOF
     runHook preInstall
 
     # App tree for asar: prod-only flat node_modules, same exclusions as
-    # electron-builder.yml's `files` list.
-    pnpm prune --prod
+    # electron-builder.yml's `files` list. No scripts: the workspace addons
+    # carry implicit node-gyp install scripts that would rebuild the natives
+    # against the wrong headers.
+    pnpm prune --prod --ignore-scripts
 
     mkdir -p app
     cp package.json app/
@@ -266,8 +285,10 @@ EOF
 
     R=$out/lib/livi/resources
     mkdir -p $R
+    # @electron/asar matches --unpack globs against the absolute crawl path,
+    # so the pattern has to be **-anchored.
     asar pack app $R/app.asar \
-      --unpack '{node_modules/usb/**,node_modules/gst-video/**,node_modules/livi-crypto/**,node_modules/@node-usb/**}'
+      --unpack '**/node_modules/{usb,gst-video,livi-crypto,@node-usb}/**'
 
     # Committed decoder bundle for this arch, plus the plugin deps it lacks.
     mkdir -p $R/gstreamer
