@@ -57,6 +57,7 @@
   # fall back to their default electron (N-API addons are ABI-stable).
   electron_43 ? electron,
   asar,
+  patchelf,
   python3,
   python3Packages,
   pkg-config,
@@ -332,6 +333,15 @@ EOF
     rm -rf $R/gstreamer/${arch.bundle}/share
     for dep in ${toString bundleLibs}; do
       cp -a $dep/lib/*.so* $R/gstreamer/${arch.bundle}/lib/
+    done
+    # The bundle's executables are Debian binaries (loader paths under /lib64
+    # or /lib); the old FHS wrapper papered over that. Repoint their loaders at
+    # the nix one so LIVI's gst-launch / gst-device-monitor / gst-plugin-scanner
+    # spawns work outside any FHS env.
+    for elf in $R/gstreamer/${arch.bundle}/bin/* $R/gstreamer/${arch.bundle}/libexec/gstreamer-1.0/*; do
+      if patchelf --print-interpreter "$elf" >/dev/null 2>&1; then
+        patchelf --set-interpreter ${stdenv.cc.bintools.dynamicLinker} "$elf"
+      fi
     done
 
     # Nested compositor: real binary from the nix build (libs resolve via its
