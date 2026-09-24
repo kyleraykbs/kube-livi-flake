@@ -11,14 +11,13 @@
     let
       sources = import ./sources.nix;
 
-      # One package, pinned to the release in sources.nix. Pass different
-      # version/url/hash through pkgs.callPackage to build another one.
+      # One package, built from source and pinned in sources.nix. Pass
+      # different version/srcHash/pnpmDepsHash through pkgs.callPackage to
+      # build another release.
       packageFor =
         pkgs:
         pkgs.callPackage ./package.nix {
-          inherit (sources) version;
-          url = sources.urlFor pkgs.stdenv.hostPlatform.system;
-          hash = sources.hashFor pkgs.stdenv.hostPlatform.system;
+          inherit (sources) version srcHash pnpmDepsHash;
         };
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -41,8 +40,7 @@
           }:
           {
             imports = [ ./module.nix ];
-            # The AppImage is per-architecture, so the default package is built
-            # for the host being configured.
+            # Built from source for the host being configured.
             programs.livi.package = lib.mkDefault (packageFor pkgs);
           };
 
@@ -55,11 +53,6 @@
         {
           packages.livi = packageFor pkgs;
           packages.default = packageFor pkgs;
-          # From-source build with the AA typing patch. Takes over `livi` once
-          # both architectures verify.
-          packages.livi-src = pkgs.callPackage ./package-from-source.nix {
-            inherit (sources) version;
-          };
           formatter = pkgs.nixfmt;
         };
     };

@@ -115,7 +115,7 @@ in
 
         ```nix
         programs.livi.package = pkgs.callPackage kube-livi/package.nix {
-          version = "8.3.0"; url = "…"; hash = "…";
+          version = "8.3.0"; srcHash = "…"; pnpmDepsHash = "…";
         };
         ```
       '';

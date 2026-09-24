@@ -1,37 +1,19 @@
-# Upstream release pins. LIVI publishes one AppImage per architecture and each
-# has its own hash, so both live here rather than inside the package expression.
-# Bumping `version` means re-hashing both assets: `nix hash file --type sha256
-# --sri <appimage>`.
+# Upstream release pins for the from-source build. Bumping `version` means
+# re-hashing two fixed-output derivations:
+#   srcHash      — the GitHub tag tarball (unpacked tree):
+#                  nix-prefetch-url --unpack \
+#                    https://github.com/f-io/LIVI/archive/refs/tags/v<version>.tar.gz
+#                  | xargs -I{} nix hash convert --hash-algo sha256 --to sri {}
+#   pnpmDepsHash — the pnpm store; set it to "" and fetchPnpmDeps will fail
+#                  with the "got:" hash to paste back in. It is arch-
+#                  independent between linux builders (the lockfile pins
+#                  supportedArchitectures to os=current+darwin,
+#                  cpu=current+x64+arm64), so one hash serves both systems.
 let
   version = "8.2.1";
-
-  assetFor =
-    system:
-    if builtins.hasAttr system assets then
-      assets.${system}
-    else
-      throw "kube-livi: no LIVI release asset for ${system} (known: ${builtins.concatStringsSep ", " (builtins.attrNames assets)})";
-
-  assets = {
-    aarch64-linux = {
-      suffix = "arm64";
-      hash = "sha256-3JrUwp6HoiSEuzjw996PZk3tYnvUwqocvReSvVod+h8=";
-    };
-    x86_64-linux = {
-      suffix = "x86_64";
-      hash = "sha256-EtApB9WQC3YrDFCyf0zymwQlfU2dwSzDl4bv1wfvZxs=";
-    };
-  };
+  srcHash = "sha256-9H17QoSleIJ/WWSFujz6HGdVuF90mxXovyXIxXkrPps=";
+  pnpmDepsHash = "sha256-iRMCkqs6RFBhjbntf8ulwsajkN8JDf/NmbIeYtBI6T4=";
 in
 {
-  inherit version assets;
-
-  urlFor =
-    system:
-    let
-      asset = assetFor system;
-    in
-    "https://github.com/f-io/LIVI/releases/download/v${version}/LIVI-${version}-linux-${asset.suffix}.AppImage";
-
-  hashFor = system: (assetFor system).hash;
+  inherit version srcHash pnpmDepsHash;
 }
