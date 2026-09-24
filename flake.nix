@@ -55,6 +55,11 @@
         {
           packages.livi = packageFor pkgs;
           packages.default = packageFor pkgs;
+          # From-source build with the AA typing patch. Takes over `livi` once
+          # both architectures verify.
+          packages.livi-src = pkgs.callPackage ./package-from-source.nix {
+            inherit (sources) version;
+          };
           formatter = pkgs.nixfmt;
         };
     };
