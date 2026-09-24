@@ -251,7 +251,7 @@ stdenv.mkDerivation {
     # fatal in a build sandbox); the setting lives in .npmrc for older pnpm and
     # in pnpm-workspace.yaml for the 11.x generation that reads settings there.
     printf 'node-linker=hoisted\nconfirm-modules-purge=false\n' >> .npmrc
-    printf '\nconfirmModulesPurge: false\n' >> pnpm-workspace.yaml
+    printf '\nconfirmModulesPurge: false\nnodeLinker: hoisted\n' >> pnpm-workspace.yaml
 
     # The root postinstall (`electron-builder install-app-deps`) is a dev-time
     # rebuild step; the natives are built explicitly against the app's Electron
