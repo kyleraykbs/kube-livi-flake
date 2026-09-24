@@ -323,6 +323,11 @@ EOF
     cp package.json app/
     cp -rL out app/out
     rm -rf app/out/compositor app/out/main/driver
+    # prune's purge path leaves dangling .bin links (cp -rL dies on those), and
+    # pnpm's internal .pnpm store must never ship: it keeps pruned dev packages
+    # and duplicates the whole tree. Hoisted top-level dirs are real files.
+    find node_modules -xtype l -delete
+    rm -rf node_modules/.pnpm
     cp -rL node_modules app/node_modules
 
     R=$out/lib/livi/resources
