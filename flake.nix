@@ -46,6 +46,16 @@
 
         # Alias, so both `nixosModules.default` and `nixosModules.livi` work.
         nixosModules.livi = inputs.self.nixosModules.default;
+
+        # The per-user half: LIVI's config.json (settings, key bindings).
+        homeModules.default = { ... }: {
+          imports = [ ./home.nix ];
+        };
+
+        # Aliases, matching the names other flakes in the wild use for the
+        # same output.
+        homeModules.livi = inputs.self.homeModules.default;
+        homeManagerModules = inputs.self.homeModules;
       };
 
       perSystem =

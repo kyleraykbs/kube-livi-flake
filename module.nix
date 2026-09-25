@@ -1,10 +1,10 @@
-# NixOS module for LIVI.
+# NixOS module for LIVI: the system side of a head unit host.
 #
-# Covers the whole surface the head unit needs: the package itself, the host
-# tools for its own Wi-Fi access point, the udev rule that grants access to a
-# phone in Android Auto accessory mode, WirePlumber for audio, and LIVI's
-# config.json — which LIVI rewrites at runtime, so it is merged at activation
-# rather than symlinked.
+# Covers the package itself, the host tools for its own Wi-Fi access point, the
+# udev rule that grants access to a phone in Android Auto accessory mode,
+# WirePlumber for audio, and the tools its in-app "Missing Packages" checks look
+# for. LIVI's config.json is per-user and belongs to the home-manager module
+# (home.nix) — see shared.nix for the merge itself.
 {
   config,
   lib,
@@ -18,7 +18,6 @@ let
     mkIf
     mkEnableOption
     mkOption
-    concatMapStringsSep
     ;
 
   # Upstream's udev template (assets/linux/99-LIVI.rules.template, mirrored in
@@ -37,86 +36,6 @@ let
         "${pkgs.procps}/bin/sysctl"
       ]
       (builtins.readFile ./files/99-LIVI.rules.template);
-
-  # LIVI's DEFAULT_BINDINGS (src/main/shared/types/Config.ts, v8.2.1). Spelled
-  # out so a declared config is complete: a config.json that only carries the
-  # changed keys would otherwise fall back to whatever the app decides.
-  defaultBindings = {
-    # D-Pad
-    up = "ArrowUp";
-    down = "ArrowDown";
-    left = "ArrowLeft";
-    right = "ArrowRight";
-    selectUp = "";
-    selectDown = "Enter";
-    back = "Backspace";
-
-    # Rotary knob
-    knobLeft = "";
-    knobRight = "";
-    knobUp = "";
-    knobDown = "";
-
-    # Media
-    home = "KeyH";
-    cycleSession = "KeyS";
-    playPause = "KeyP";
-    play = "";
-    pause = "";
-    next = "KeyN";
-    prev = "KeyB";
-
-    # Phone
-    acceptPhone = "KeyA";
-    rejectPhone = "KeyR";
-    phoneKey0 = "Digit0";
-    phoneKey1 = "Digit1";
-    phoneKey2 = "Digit2";
-    phoneKey3 = "Digit3";
-    phoneKey4 = "Digit4";
-    phoneKey5 = "Digit5";
-    phoneKey6 = "Digit6";
-    phoneKey7 = "Digit7";
-    phoneKey8 = "Digit8";
-    phoneKey9 = "Digit9";
-    phoneKeyStar = "";
-    phoneKeyHash = "";
-    phoneKeyHookSwitch = "";
-
-    # Voice
-    voiceAssistant = "KeyV";
-    voiceAssistantRelease = "";
-  };
-
-  # Bindings are typed separately from `settings` because they are the fiddly
-  # part; they always win over a raw `settings.bindings`.
-  mergedSettings = cfg.settings // {
-    bindings = defaultBindings // cfg.bindings;
-  };
-
-  settingsFile = (pkgs.formats.json { }).generate "livi-config.json" mergedSettings;
-
-  mergeConfig = pkgs.writeShellScript "livi-config" ''
-    set -eu
-    export PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.jq ]}:$PATH
-
-    cfg="$1"
-    wanted="$2"
-
-    mkdir -p "$(dirname "$cfg")"
-    tmp="$(mktemp)"
-    trap 'rm -f "$tmp"' EXIT
-
-    if [ -f "$cfg" ]; then
-      # Recursive merge: everything LIVI wrote itself (device history, window
-      # bounds, dismissed dialogs) survives, the declared keys win.
-      jq --slurpfile want "$wanted" '. * $want[0]' "$cfg" > "$tmp"
-    else
-      cp -f "$wanted" "$tmp"
-    fi
-
-    install -m 600 "$tmp" "$cfg"
-  '';
 in
 {
   options.programs.livi = {
@@ -135,68 +54,6 @@ in
           version = "8.3.0"; pnpmDepsHash = "…";
         };
         ```
-      '';
-    };
-
-    users = mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      example = [ "kyle" ];
-      description = ''
-        Users to write {file}`~/.config/LIVI/config.json` for. The file is a
-        runtime file — LIVI rewrites it as settings change and restores it from
-        its own mirror at {file}`~/.local/share/LIVI/config.json` — so the
-        declared keys are merged into it at every activation instead of being
-        symlinked. Leave empty to keep your hands off the file.
-      '';
-    };
-
-    settings = mkOption {
-      type = lib.types.attrsOf lib.types.anything;
-      default = { };
-      example = lib.literalExpression ''
-        {
-          appearanceMode = "night";   # Phone Appearance: "auto" | "day" | "night"
-          nightMode = true;
-          darkMode = true;
-          carName = "Head unit";
-          projectionWidth = 1280;
-        }
-      '';
-      description = ''
-        Keys written verbatim into LIVI's config.json — the full surface, see
-        `src/main/shared/types/Config.ts` in the vendored `src/` tree
-        (`DefaultConfig.ts` for the defaults). Notable ones: `appearanceMode` is
-        the Phone Appearance
-        setting, where `"auto"` sends no day/night override at all and
-        `"night"`/`"day"` pin the phone's UI over the session; `nightMode` is
-        the value the telemetry adapters push; `darkMode` is LIVI's own UI.
-      '';
-    };
-
-    bindings = mkOption {
-      type = lib.types.attrsOf lib.types.str;
-      default = { };
-      example = lib.literalExpression ''
-        {
-          next = "KeyN";
-          prev = "KeyB";
-          playPause = "KeyP";
-        }
-      '';
-      description = ''
-        Keyboard bindings merged over LIVI's defaults. Values are DOM
-        `KeyboardEvent.code` names (`KeyH`, `Digit3`, `ArrowUp`, `Enter`, …);
-        an empty string unbinds. The keys are LIVI's command names: `up`,
-        `down`, `left`, `right`, `selectUp`, `selectDown`, `back`,
-        `knobLeft`/`knobRight`/`knobUp`/`knobDown`, `home`, `cycleSession`,
-        `playPause`, `play`, `pause`, `next`, `prev`, `acceptPhone`,
-        `rejectPhone`, `phoneKey0`…`phoneKey9`, `phoneKeyStar`, `phoneKeyHash`,
-        `phoneKeyHookSwitch`, `voiceAssistant`, `voiceAssistantRelease`.
-
-        These bind physical keys to commands the head unit sends to the phone;
-        they cannot produce text — Android Auto's input channel carries no
-        printable keycodes.
       '';
     };
 
@@ -288,16 +145,5 @@ in
     services.udev.packages = lib.mkIf cfg.usbRules.enable [
       (pkgs.writeTextDir "lib/udev/rules.d/99-LIVI.rules" ruleText)
     ];
-
-    system.activationScripts.livi-config = mkIf (cfg.users != [ ]) {
-      deps = [ "users" ];
-      text = concatMapStringsSep "\n" (
-        user:
-        let
-          home = config.users.users.${user}.home;
-        in
-        ''${pkgs.util-linux}/bin/runuser -u ${user} -- ${mergeConfig} ${home}/.config/LIVI/config.json ${settingsFile}''
-      ) cfg.users;
-    };
   };
 }

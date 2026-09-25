@@ -22,9 +22,12 @@ A rolling list — append as things land:
   GStreamer tree, completed with the host libraries it was missing (notably
   libssh, without which the bundled libav-based plugin never loads). No
   VA-API/VideoToolbox needed.
-- **NixOS module** — declarative `config.json` (`settings`, `bindings`),
-  per-user install with activation-time merging, udev USB rules, WirePlumber,
-  wireless AP tooling (`hostapd`/`dnsmasq`/`iw`).
+- **NixOS module** — the system side: package, udev USB rules, WirePlumber,
+  wireless AP tooling (`hostapd`/`dnsmasq`/`iw`), the tools its in-app package
+  checks look for.
+- **home-manager module** — the per-user side: declarative `config.json`
+  (`settings`, `bindings`) merged into the live file at every activation, since
+  LIVI rewrites that file at runtime.
 - **Built from source** — app packed as asar on nixpkgs' Electron, native
   addons rebuilt against Electron headers, wlroots 0.20 compositor built
   static from the pinned release tarball. First-class on `x86_64-linux` and
@@ -44,8 +47,19 @@ inputs.kube-livi.url = "github:kyleraykbs/kube-livi-flake";
   imports = [ inputs.kube-livi.nixosModules.default ];
 
   programs.livi = {
+    enable = true; # package, udev rule, WirePlumber, AP tools
+  };
+}
+```
+
+```nix
+# home-manager configuration (per user)
+{ inputs, ... }:
+{
+  imports = [ inputs.kube-livi.homeModules.default ];
+
+  programs.livi = {
     enable = true;
-    users = [ "kyle" ];
     settings = {
       appearanceMode = "night"; # "auto" | "day" | "night"
       nightMode = true;

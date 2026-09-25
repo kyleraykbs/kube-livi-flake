@@ -1,31 +1,54 @@
 # Flake & module reference
 
+Two modules, one per scope:
+
+- **`nixosModules.default`** — the system side: installs the package and the
+  host tooling a head unit needs.
+- **`homeModules.default`** — the per-user side: LIVI's `config.json`
+  (`settings`, `bindings`), merged into the live file at every activation.
+
 ## Outputs
 
 | Output | What it is |
 | --- | --- |
 | `packages.<system>.livi` / `default` | The LIVI build: Electron app (packed asar), bundled GStreamer decode tree, static wlroots compositor |
 | `overlays.default` | Adds `pkgs.livi` |
-| `nixosModules.default` / `nixosModules.livi` | The NixOS module; also sets `programs.livi.package` to this flake's build |
+| `nixosModules.default` / `nixosModules.livi` | NixOS module; also sets `programs.livi.package` to this flake's build |
+| `homeModules.default` / `homeModules.livi` | home-manager module (aliased as `homeManagerModules`, the name some flakes use) |
 | `formatter.<system>` | `nixfmt` |
 
 Systems: `x86_64-linux`, `aarch64-linux`. Both build natively; cross-compiling
 is not supported (native addons and the compositor build for the host).
 
-## Module options (`programs.livi`)
+## NixOS module options (`programs.livi`)
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `enable` | `false` | Install LIVI |
+| `enable` | `false` | Install LIVI and the host tooling below |
 | `package` | `pkgs.livi` | The package to run; the flake module points it at its own source build |
-| `users` | `[ ]` | Users whose `~/.config/LIVI/config.json` gets the declared keys merged at every activation. The file is a runtime file (LIVI rewrites it and keeps its own mirror in `~/.local/share/LIVI/`), so keys are merged, never symlinked. Empty list = hands off the file |
-| `settings` | `{ }` | Keys written verbatim into `config.json` — the whole config surface (see below) |
-| `bindings` | `{ }` | Keyboard bindings merged over LIVI's defaults; values are DOM `KeyboardEvent.code` names (`KeyH`, `Digit3`, `ArrowUp`, `Enter`, …), `""` unbinds |
 | `wirelessApTools` | `true` | Install `hostapd`, `dnsmasq`, `iw` for LIVI's Wi-Fi access point (wireless CarPlay / Android Auto) |
 | `usbRules.enable` | `true` | udev rule for phones in Android Auto accessory mode |
 | `usbRules.group` | `"users"` | Group granted the phone's USB node (NixOS has no `plugdev`; the rule also tags `uaccess`) |
 | `wireplumber` | `true` | Enable WirePlumber, which LIVI expects for audio routing |
 | `extraPackages` | `[ ]` | Extra packages installed alongside LIVI |
+
+It also installs the tools LIVI's in-app "Missing Packages" check probes for
+(`bluez`, `util-linux`, `pulseaudio`, `avahi`, `cage`, `seatd`, `wlr-randr`,
+`xdg-user-dirs`, `curl`, a `python3` with the helper's modules).
+
+## home-manager module options (`programs.livi`)
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `enable` | `false` | Manage this user's `config.json` |
+| `settings` | `{ }` | Keys written verbatim into `config.json` — the whole config surface (see below) |
+| `bindings` | `{ }` | Keyboard bindings merged over LIVI's defaults; values are DOM `KeyboardEvent.code` names (`KeyH`, `Digit3`, `ArrowUp`, `Enter`, …), `""` unbinds |
+
+`settings` and `bindings` are merged into `~/.config/LIVI/config.json` by a
+`home.activation` entry (after `writeBoundary`), **not** symlinked: LIVI
+rewrites that file while it runs and keeps its own mirror in
+`~/.local/share/LIVI/`, so everything the app wrote itself (device history,
+window bounds, dismissed dialogs) survives and the declared keys win.
 
 ## Config surface (`settings`)
 
