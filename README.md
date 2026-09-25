@@ -1,7 +1,8 @@
 # kube-livi
 
 LIVI — a CarPlay & Android Auto head unit — packaged for NixOS: a flake build
-plus a NixOS module. The LIVI sources are vendored in [`src/`](src/), a fork of
+with a NixOS module (system side) and a home-manager module (per-user config).
+The LIVI sources are vendored in [`src/`](src/), a fork of
 [f-io/LIVI](https://github.com/f-io/LIVI) v8.2.1, so every change lives
 directly in the tree instead of in a patch stack.
 
