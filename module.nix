@@ -277,15 +277,16 @@ in
 
     services.pipewire.wireplumber.enable = mkIf cfg.wireplumber true;
 
-    # The in-app USB check looks for this exact file carrying the template's
-    # LIVI-RULE-VERSION marker, so render the upstream template here instead of
-    # routing the rule through services.udev.extraRules — that covers the rule's
-    # function but not the file LIVI checks. If an upstream bump changes the
-    # marker the app asks to update; sync files/99-LIVI.rules.template then.
-    environment.etc = lib.mkIf cfg.usbRules.enable {
-      "udev/rules.d/99-LIVI.rules".text = ruleText;
-    };
-    systemd.services.systemd-udevd.restartTriggers = lib.mkIf cfg.usbRules.enable [ ruleText ];
+    # The in-app USB check looks for /etc/udev/rules.d/99-LIVI.rules carrying
+    # the template's LIVI-RULE-VERSION marker. NixOS owns that directory as one
+    # symlinked farm (services.udev collects «pkg»/{etc,lib}/udev/rules.d/* by
+    # filename and restarts udevd when it changes), so the rule joins it as a
+    # udev package — an environment.etc file under that path cannot be created.
+    # If an upstream bump changes the marker, the app asks to update; sync
+    # files/99-LIVI.rules.template then.
+    services.udev.packages = lib.mkIf cfg.usbRules.enable [
+      (pkgs.writeTextDir "lib/udev/rules.d/99-LIVI.rules" ruleText)
+    ];
 
     system.activationScripts.livi-config = mkIf (cfg.users != [ ]) {
       deps = [ "users" ];
