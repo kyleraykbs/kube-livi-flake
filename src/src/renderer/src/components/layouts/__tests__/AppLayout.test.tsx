@@ -90,6 +90,46 @@ describe('AppLayout', () => {
     expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
   })
 
+  test('auto-hides the kept rail while streaming and reveals it on activity', async () => {
+    mockStreaming = true
+    mockNavWhileStreaming = true
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+    const navHidden = () => container.querySelector('#content-root')?.getAttribute('data-nav-hidden')
+
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(navHidden()).toBe('1')
+
+    fireEvent.mouseMove(document)
+    expect(navHidden()).toBe('0')
+  })
+
+  test('the kept rail floats above the projection touch surface', async () => {
+    mockStreaming = true
+    mockNavWhileStreaming = true
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        {/* mirrors Projection.tsx: the phone's touch surface spans the window */}
+        <div id="projection-root" style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+      </AppLayout>
+    )
+    const navZ = Number((container.querySelector('#nav-root') as HTMLElement).style.zIndex)
+    const projectionZ = Number(
+      (container.querySelector('#projection-root') as HTMLElement).style.zIndex
+    )
+
+    expect(navZ).toBeGreaterThan(projectionZ)
+  })
+
   test('auto-hides nav after inactivity on maps', async () => {
     mockPathname = '/cluster'
     const navRef = createRef<HTMLDivElement>()

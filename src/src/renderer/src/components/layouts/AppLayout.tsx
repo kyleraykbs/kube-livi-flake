@@ -36,13 +36,23 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
 
   const inAutoHideNavPage = pathname === ROUTES.CLUSTER || pathname === ROUTES.TELEMETRY
 
-  const { hidden: clusterNavHidden } = useAutoHideNav(inAutoHideNavPage, navRef.current)
+  // While a phone streams, a kept rail (navWhileStreaming) floats over the
+  // projection instead of taking layout width: the video plane is placed by the
+  // compositor over the whole window and the phone's touch area spans it too, so
+  // reserving column width there would only desync the two. Floating means it
+  // auto-hides like the cluster/telemetry rails, and NAV_Z_INDEX keeps it above
+  // that touch area while it is up.
+  const streamingNavOverlay =
+    isStreaming && pathname === ROUTES.HOME && Boolean(settings?.navWhileStreaming)
+  const autoHideNav = inAutoHideNavPage || streamingNavOverlay
+
+  const { hidden: autoHiddenNav } = useAutoHideNav(autoHideNav, navRef.current)
 
   const tabs = useTabsConfig(receivingVideo)
   const singleTab = tabs.length <= 1
 
   const hideNavHome = isStreaming && pathname === ROUTES.HOME && !settings?.navWhileStreaming
-  const hideNav = hideNavHome || (inAutoHideNavPage && clusterNavHidden)
+  const hideNav = hideNavHome || (autoHideNav && autoHiddenNav)
 
   // Steering wheel position
   const isRhd = Number(settings?.hand ?? 0) === 1
@@ -77,11 +87,11 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
             borderRight: isRhd ? undefined : '1px solid #444',
             borderLeft: isRhd ? '1px solid #444' : undefined,
             flex: '0 0 auto',
-            position: inAutoHideNavPage ? 'absolute' : 'relative',
-            top: inAutoHideNavPage ? 0 : undefined,
-            left: inAutoHideNavPage && !isRhd ? 0 : undefined,
-            right: inAutoHideNavPage && isRhd ? 0 : undefined,
-            zIndex: 10,
+            position: autoHideNav ? 'absolute' : 'relative',
+            top: autoHideNav ? 0 : undefined,
+            left: autoHideNav && !isRhd ? 0 : undefined,
+            right: autoHideNav && isRhd ? 0 : undefined,
+            zIndex: UI.NAV_Z_INDEX,
             opacity: hideNav ? 0 : 1,
             transform: hideNav
               ? isRhd

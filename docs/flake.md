@@ -89,9 +89,10 @@ Notable keys:
 - `projectionWidth` / `projectionHeight` — negotiated projection resolution
 - `textMode` — physical-keyboard typing into the phone while streaming
   (default `true`; also toggleable in *Settings → Key Bindings*)
-- `navWhileStreaming` — keep the nav rail visible while a phone streams
-  (default `true` in this fork; `false` is upstream's full-bleed video, where
-  the rail is hidden on the projection page). *Settings → Appearance*
+- `navWhileStreaming` — keep the nav rail reachable while a phone streams
+  (default `true` in this fork): it floats above the projection and auto-hides
+  when idle; `false` is upstream's behaviour, where the rail is dropped on the
+  projection page. *Settings → Appearance*
 
 `bindings` keys: `up`, `down`, `left`, `right`, `selectUp`, `selectDown`,
 `back`, `knobLeft`, `knobRight`, `knobUp`, `knobDown`, `home`, `cycleSession`,
