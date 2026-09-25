@@ -29,6 +29,10 @@ A rolling list — append as things land:
 - **home-manager module** — the per-user side: declarative `config.json`
   (`settings`, `bindings`) merged into the live file at every activation, since
   LIVI rewrites that file at runtime.
+- **Nav rail stays while projecting** — upstream hides the left rail the moment
+  a phone streams, so settings/phone/dash become unreachable; this fork keeps
+  it (a tap-sized loss of video width) with a *Settings → Appearance →
+  Navigation while projecting* toggle for upstream's full-bleed behaviour.
 - **Stylix aware** — when stylix is part of the same home configuration, the
   phone's appearance (night/day), LIVI's dark mode and its background/accent
   colours come from the scheme. Declared settings win.

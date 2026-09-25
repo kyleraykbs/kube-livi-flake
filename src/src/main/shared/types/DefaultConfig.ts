@@ -59,6 +59,7 @@ export const DEFAULT_CONFIG: Config = {
   carPlayMfiI2cBus: 2,
   carPlayMfiPowerGpio: -1,
   appearanceMode: 'auto',
+  navWhileStreaming: true,
   displayMode: '',
   displayGamma: 1.0,
   displayContrast: 1.0,

@@ -1755,22 +1755,28 @@ export class ProjectionService {
 
   private dispatchRemoteInput(command: string): void {
     const keyCode = parseRawKeyCommand(command)
+
     if (keyCode !== null) {
       console.log(`[ProjectionService] raw key ${keyCode} (started=${this.started})`)
+      if (this.started) {
+        try {
+          // A printable key from a physical keyboard: the phone receives it as
+          // a key event (Android keycodes, shared/types/KeyboardInput.ts), so
+          // it types into whatever field the phone has focused.
+          this.driver.handleRawKey?.(keyCode)
+        } catch (e) {
+          console.warn(`[ProjectionService] remote input "${command}" failed`, e)
+        }
+      }
+      return
     }
-    if (keyCode === null && !isInputCommand(command)) {
+
+    if (!isInputCommand(command)) {
       console.warn(`[ProjectionService] remote input: unknown command "${command}"`)
       return
     }
     if (!this.started) return
     try {
-      if (keyCode !== null) {
-        // A printable key from a physical keyboard: the phone receives it as a
-        // key event (Android keycodes, shared/types/KeyboardInput.ts), so it
-        // types into whatever field the phone has focused.
-        this.driver.handleRawKey?.(keyCode)
-        return
-      }
       this.driver.handleInput(command)
     } catch (e) {
       console.warn(`[ProjectionService] remote input "${command}" failed`, e)

@@ -52,6 +52,7 @@
     "fftDelay": "FFT-Verzögerung",
     "keyBindings": "Tastenbelegung",
     "textMode": "Textmodus",
+    "navWhileStreaming": "Navigation während der Projektion",
     "up": "Oben",
     "down": "Unten",
     "left": "Links",

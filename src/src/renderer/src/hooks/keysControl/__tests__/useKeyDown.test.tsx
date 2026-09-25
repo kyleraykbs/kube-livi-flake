@@ -1208,7 +1208,8 @@ describe('useKeyDown', () => {
     btn.focus()
 
     mockPathname = ROUTES.HOME
-    mockSettings = { bindings: { voiceAssistant: 'KeyV' } }
+    // text mode off: a printable binding runs its command instead of typing
+    mockSettings = { textMode: false, bindings: { voiceAssistant: 'KeyV' } }
 
     const onSetKeyCommand = vi.fn()
     const context: AppContextProps = {
@@ -1246,6 +1247,50 @@ describe('useKeyDown', () => {
     expect(event.stopPropagation).toHaveBeenCalled()
   })
 
+  test('text mode types a printable bound key instead of running its command', () => {
+    const { contentRoot } = setupRoots()
+    const btn = document.createElement('button')
+    contentRoot.appendChild(btn)
+    btn.focus()
+
+    mockPathname = ROUTES.HOME
+    mockSettings = { textMode: true, bindings: { playPause: 'KeyP' } }
+
+    const onSetKeyCommand = vi.fn()
+    const context: AppContextProps = {
+      isTouchDevice: false,
+      keyboardNavigation: { focusedElId: null },
+      contentEl: { current: contentRoot },
+      onSetAppContext: vi.fn()
+    }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <AppContext.Provider value={context}>{children}</AppContext.Provider>
+    )
+
+    const { result } = renderHook(
+      () =>
+        useKeyDown({
+          receivingVideo: true,
+          inContainer: (root, el) => !!root && !!el && root.contains(el),
+          focusSelectedNav: vi.fn(() => false),
+          focusFirstInMain: vi.fn(() => false),
+          moveFocusLinear: vi.fn(() => false),
+          isFormField: vi.fn(() => false),
+          activateControl: vi.fn(() => false),
+          onSetKeyCommand,
+          onSetCommandCounter: vi.fn()
+        }),
+      { wrapper }
+    )
+
+    const event = makeEvent('KeyP')
+    result.current(event)
+
+    expect(onSetKeyCommand).toHaveBeenCalledTimes(1)
+    expect(onSetKeyCommand).toHaveBeenCalledWith(expect.stringMatching(/^key:\d+$/))
+    expect(event.preventDefault).toHaveBeenCalled()
+  })
+
   test('CarPlay selectDown invokes the command counter updater twice', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const { contentRoot } = setupRoots()
@@ -1254,7 +1299,8 @@ describe('useKeyDown', () => {
     btn.focus()
 
     mockPathname = ROUTES.HOME
-    mockSettings = { bindings: { selectDown: 'KeyG' } }
+    // text mode off: a printable binding runs its command instead of typing
+    mockSettings = { textMode: false, bindings: { selectDown: 'KeyG' } }
 
     const counted: number[] = []
     const onSetCommandCounter = vi.fn((p: (_p: number) => number) => {

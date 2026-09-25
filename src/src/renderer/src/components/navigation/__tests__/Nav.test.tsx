@@ -113,6 +113,28 @@ describe('Nav', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  test('keeps the rail while streaming on home when navWhileStreaming is set', async () => {
+    mockIsStreaming = true
+    mockPathname = ROUTES.HOME
+
+    render(
+      <Nav receivingVideo={false} settings={{ navWhileStreaming: true } as never} />
+    )
+
+    expect(screen.getByTestId('tabs')).toBeInTheDocument()
+  })
+
+  test('hides the rail while streaming on home when navWhileStreaming is unset', async () => {
+    mockIsStreaming = true
+    mockPathname = ROUTES.HOME
+
+    const { container } = render(
+      <Nav receivingVideo={false} settings={{ navWhileStreaming: false } as never} />
+    )
+
+    expect(container.firstChild).toBeNull()
+  })
+
   test('renders tabs when streaming but not on home page', async () => {
     mockIsStreaming = true
     mockPathname = ROUTES.MEDIA

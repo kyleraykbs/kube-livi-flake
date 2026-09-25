@@ -41,7 +41,7 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
   const tabs = useTabsConfig(receivingVideo)
   const singleTab = tabs.length <= 1
 
-  const hideNavHome = isStreaming && pathname === ROUTES.HOME
+  const hideNavHome = isStreaming && pathname === ROUTES.HOME && !settings?.navWhileStreaming
   const hideNav = hideNavHome || (inAutoHideNavPage && clusterNavHidden)
 
   // Steering wheel position

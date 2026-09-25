@@ -20,6 +20,13 @@ export const appearanceSchema: SettingsNode<Config> = {
       path: 'darkMode'
     },
     {
+      type: 'checkbox',
+      label: 'Navigation while projecting',
+      labelKey: 'settings.navWhileStreaming',
+      icon: 'navigation',
+      path: 'navWhileStreaming'
+    },
+    {
       type: 'select',
       label: 'Phone Appearance',
       labelKey: 'settings.phoneAppearance',

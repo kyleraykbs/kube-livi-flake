@@ -195,6 +195,9 @@ export type Config = {
   kiosk: WindowAssignment
   uiZoomPercent: number
   appearanceMode: AppearanceMode
+  // Keep the nav rail visible while a phone is projecting, instead of hiding it
+  // so the video is full-bleed (upstream's behaviour, and what `false` gives).
+  navWhileStreaming: boolean
 
   // Panel mode as "WIDTHxHEIGHT", empty leaves the display at the mode it came up in
   displayMode: string

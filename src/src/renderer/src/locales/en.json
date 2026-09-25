@@ -52,6 +52,7 @@
     "fftDelay": "FFT Delay",
     "keyBindings": "Key Bindings",
     "textMode": "Text mode",
+    "navWhileStreaming": "Navigation while projecting",
     "up": "Up",
     "down": "Down",
     "left": "Left",

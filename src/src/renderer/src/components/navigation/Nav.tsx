@@ -12,7 +12,7 @@ interface NavProps {
   receivingVideo: boolean
 }
 
-export const Nav = ({ receivingVideo }: NavProps) => {
+export const Nav = ({ receivingVideo, settings }: NavProps) => {
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -22,7 +22,9 @@ export const Nav = ({ receivingVideo }: NavProps) => {
   const isStreaming = useStatusStore((s) => s.isStreaming)
   const tabs = useTabsConfig(receivingVideo)
 
-  if (isStreaming && pathname === ROUTES.HOME) return null
+  // The rail stays up while a phone streams unless the config asks for the
+  // full-bleed video (Appearance › Navigation while projecting).
+  if (isStreaming && pathname === ROUTES.HOME && !settings?.navWhileStreaming) return null
 
   const items: NavRailItem[] = tabs.map((t) => ({
     key: t.path,

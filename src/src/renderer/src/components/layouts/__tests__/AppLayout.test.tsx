@@ -5,6 +5,7 @@ import { AppLayout } from '../AppLayout'
 let mockPathname = '/'
 let mockStreaming = false
 let mockHand = 0
+let mockNavWhileStreaming = false
 
 vi.mock('react-router', () => ({
   useLocation: () => ({ pathname: mockPathname })
@@ -21,8 +22,11 @@ vi.mock('../../navigation/useTabsConfig', () => ({
 }))
 
 vi.mock('@store/store', () => ({
-  useLiviStore: (selector: (s: any) => unknown) => selector({ settings: { hand: mockHand } }),
-  useStatusStore: (selector: (s: any) => unknown) => selector({ isStreaming: mockStreaming })
+  useLiviStore: (
+    selector: (s: { settings: { hand: number; navWhileStreaming: boolean } }) => unknown
+  ) => selector({ settings: { hand: mockHand, navWhileStreaming: mockNavWhileStreaming } }),
+  useStatusStore: (selector: (s: { isStreaming: boolean }) => unknown) =>
+    selector({ isStreaming: mockStreaming })
 }))
 
 vi.mock('../../../hooks/useBlinkingTime', () => ({
@@ -50,6 +54,7 @@ describe('AppLayout', () => {
     mockPathname = '/'
     mockStreaming = false
     mockHand = 0
+    mockNavWhileStreaming = false
     mockTabCount = 4
     mockNetwork = { type: 'wifi', online: true }
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
@@ -70,6 +75,19 @@ describe('AppLayout', () => {
       </AppLayout>
     )
     expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('1')
+  })
+
+  test('keeps nav on home when streaming and navWhileStreaming is on', async () => {
+    mockStreaming = true
+    mockNavWhileStreaming = true
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
   })
 
   test('auto-hides nav after inactivity on maps', async () => {
