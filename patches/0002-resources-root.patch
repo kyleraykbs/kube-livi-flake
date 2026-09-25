@@ -1,0 +1,161 @@
+diff --git a/src/main/app/compositorBootstrap.ts b/src/main/app/compositorBootstrap.ts
+index 58b70b9..acda4ac 100644
+--- a/src/main/app/compositorBootstrap.ts
++++ b/src/main/app/compositorBootstrap.ts
+@@ -1,6 +1,7 @@
+ import { spawn } from 'node:child_process'
+ import { existsSync } from 'node:fs'
+-import { join } from 'node:path'
++import { dirname, join } from 'node:path'
++import { app } from 'electron'
+ import { COMPOSITOR_TITLEBAR_H } from '@main/app/compositorLayout'
+ import { applyHostOutputMode } from '@main/app/hostOutput'
+ import { loadConfig } from '@main/config/loadConfig'
+@@ -16,14 +17,24 @@ export function bootstrapCompositor(): boolean {
+   // via $APPIMAGE, the .deb via its own binary.
+   const relaunch = process.env.APPIMAGE ?? process.execPath
+ 
+-  const resources = process.resourcesPath
+-  if (!resources) return false
+-  const launcher = join(resources, 'compositor', 'livi-compositor')
+-  if (!existsSync(launcher)) return false
++  // Electron installed separately (nix): process.resourcesPath points at the
++  // Electron runtime; the compositor launcher sits next to the app path.
++  const candidates: string[] = []
++  if (typeof process.resourcesPath === 'string' && process.resourcesPath) {
++    candidates.push(join(process.resourcesPath, 'compositor', 'livi-compositor'))
++  }
++  const appPath = app?.getAppPath?.() ?? ''
++  if (appPath) candidates.push(join(dirname(appPath), 'compositor', 'livi-compositor'))
++  const launcher = candidates.find((p) => existsSync(p))
++  if (!launcher) return false
+ 
+   const hostLd = process.env.LD_LIBRARY_PATH ?? ''
++  // A separately-installed Electron must be told which app to load on the
++  // relaunch; the AppImage resolves its own from the executable.
++  const appArg = process.env.APPIMAGE || !appPath ? '' : ` '${appPath}'`
+   const inner =
+-    `LIVI_COMPOSITOR=1 LD_LIBRARY_PATH='${hostLd}' ` + `'${relaunch}' --ozone-platform=wayland`
++    `LIVI_COMPOSITOR=1 LD_LIBRARY_PATH='${hostLd}' ` +
++    `'${relaunch}' --ozone-platform=wayland${appArg}`
+ 
+   // Control socket: the host drives screen outputs + video placement/crop/visibility over this
+   const runtimeDir = process.env.XDG_RUNTIME_DIR || '/tmp'
+diff --git a/src/main/services/audio/gstreamer.ts b/src/main/services/audio/gstreamer.ts
+index 2e30383..66a6a75 100644
+--- a/src/main/services/audio/gstreamer.ts
++++ b/src/main/services/audio/gstreamer.ts
+@@ -18,7 +18,13 @@ export function resolveGStreamerRoot(): string | null {
+   if (!dir) return null
+   const base = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'assets')
+   const bundled = path.join(base, 'gstreamer', dir)
+-  return fs.existsSync(bundled) ? bundled : null
++  if (fs.existsSync(bundled)) return bundled
++  // Electron installed separately (nix): process.resourcesPath points at the
++  // Electron runtime; the app's resources sit next to the app path.
++  const appPath = app?.getAppPath?.() ?? ''
++  if (!appPath) return null
++  const adjacent = path.join(path.dirname(appPath), 'gstreamer', dir)
++  return fs.existsSync(adjacent) ? adjacent : null
+ }
+ 
+ export function resolveBinary(name: 'gst-launch-1.0' | 'gst-device-monitor-1.0'): string | null {
+diff --git a/src/main/services/packageCheck.ts b/src/main/services/packageCheck.ts
+index 76c7df5..6d9cd0d 100644
+--- a/src/main/services/packageCheck.ts
++++ b/src/main/services/packageCheck.ts
+@@ -1,6 +1,6 @@
+ import { execFile, execFileSync, spawn } from 'node:child_process'
+ import { existsSync, readdirSync, readFileSync } from 'node:fs'
+-import { join } from 'node:path'
++import { dirname, join } from 'node:path'
+ import { promisify } from 'node:util'
+ import { app, type BrowserWindow, dialog } from 'electron'
+ 
+@@ -17,6 +17,8 @@ export type PackageEntry = {
+ function manifestPath(): string | null {
+   const candidates = [
+     join(process.resourcesPath ?? '', 'packages.txt'),
++    // Electron installed separately (nix): the resources sit next to the app path.
++    join(dirname(app.getAppPath()), 'packages.txt'),
+     join(app.getAppPath(), 'scripts', 'install', 'packages.txt'),
+     join(process.cwd(), 'scripts', 'install', 'packages.txt')
+   ]
+diff --git a/src/main/services/projection/driver/helper/helperSudoers.ts b/src/main/services/projection/driver/helper/helperSudoers.ts
+index 9a1e44f..b53fd31 100644
+--- a/src/main/services/projection/driver/helper/helperSudoers.ts
++++ b/src/main/services/projection/driver/helper/helperSudoers.ts
+@@ -1,7 +1,7 @@
+ import { execFileSync, spawn } from 'node:child_process'
+ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+ import os from 'node:os'
+-import { join } from 'node:path'
++import { dirname, join } from 'node:path'
+ import { app, BrowserWindow, dialog } from 'electron'
+ 
+ const RULE_FILE = '/etc/sudoers.d/99-LIVI-bt'
+@@ -17,6 +17,12 @@ function resolveTemplatePath(): string {
+     const packaged = join(resources, TEMPLATE_FILENAME)
+     if (existsSync(packaged)) return packaged
+   }
++  // Electron installed separately (nix): the resources sit next to the app path.
++  const appPath = app?.getAppPath?.() ?? ''
++  if (appPath) {
++    const adjacent = join(dirname(appPath), TEMPLATE_FILENAME)
++    if (existsSync(adjacent)) return adjacent
++  }
+   return join(app.getAppPath(), 'assets', 'linux', TEMPLATE_FILENAME)
+ }
+ 
+diff --git a/src/main/services/projection/driver/helper/helperSupervisor.ts b/src/main/services/projection/driver/helper/helperSupervisor.ts
+index 5c93d79..38b7a27 100644
+--- a/src/main/services/projection/driver/helper/helperSupervisor.ts
++++ b/src/main/services/projection/driver/helper/helperSupervisor.ts
+@@ -11,7 +11,7 @@ import {
+   statSync,
+   writeFileSync
+ } from 'node:fs'
+-import { join } from 'node:path'
++import { dirname, join } from 'node:path'
+ import { DEBUG } from '@main/constants'
+ import type { Config } from '@shared/types'
+ import { app } from 'electron'
+@@ -94,6 +94,14 @@ function resolveHelperRoot(): string {
+     return resPath
+   }
+ 
++  // Electron installed separately (nix): process.resourcesPath points at the
++  // Electron runtime; the driver tree sits next to the app path.
++  const appPath = app?.getAppPath?.() ?? ''
++  if (appPath) {
++    const adjRoot = join(dirname(appPath), 'driver')
++    if (existsSync(join(adjRoot, entry))) return adjRoot
++  }
++
+   return devPath
+ }
+ function envFromConfig(cfg: Config): NodeJS.ProcessEnv {
+diff --git a/src/main/services/usb/udevRule.ts b/src/main/services/usb/udevRule.ts
+index 4348473..e9451ed 100644
+--- a/src/main/services/usb/udevRule.ts
++++ b/src/main/services/usb/udevRule.ts
+@@ -1,5 +1,5 @@
+ import { execFileSync, spawn } from 'child_process'
+-import { BrowserWindow, dialog } from 'electron'
++import { app, BrowserWindow, dialog } from 'electron'
+ import fs from 'fs'
+ import os from 'os'
+ import path from 'path'
+@@ -17,6 +17,12 @@ function resolveAssetPath(name: string): string {
+     const packaged = path.join(resources, name)
+     if (fs.existsSync(packaged)) return packaged
+   }
++  // Electron installed separately (nix): the resources sit next to the app path.
++  const appPath = app?.getAppPath?.() ?? ''
++  if (appPath) {
++    const adjacent = path.join(path.dirname(appPath), name)
++    if (fs.existsSync(adjacent)) return adjacent
++  }
+   return path.join(__dirname, '..', '..', '..', '..', 'assets', 'linux', name)
+ }
+ 

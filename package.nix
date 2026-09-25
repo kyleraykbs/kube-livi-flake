@@ -179,7 +179,13 @@ stdenv.mkDerivation {
     hash = srcHash;
   };
 
-  patches = [ ./patches/0001-aa-typing-keys.patch ];
+  # 0002: resource lookup falls back to the app-adjacent resources dir — with a
+  # separately-installed Electron (this package), process.resourcesPath points
+  # at the Electron runtime and every packaged-asset lookup would miss.
+  patches = [
+    ./patches/0001-aa-typing-keys.patch
+    ./patches/0002-resources-root.patch
+  ];
 
   # meson/ninja are used explicitly in buildPhase for the compositor subproject;
   # the root of the tree is not a meson project, so the meson hook must not
