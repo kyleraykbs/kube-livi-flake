@@ -322,6 +322,21 @@ EOF
 
     mkdir -p app
     cp package.json app/
+    # Electron derives app.isPackaged from its executable's basename — the nix
+    # electron is literally named "electron", which reads as dev mode and LIVI
+    # then opens its debug windows (chrome://gpu, chrome://media-internals)
+    # beside the UI. Force the flag before anything evaluates it: a plain
+    # assignment is silently ignored (getter-less), Object.defineProperty
+    # works. Verified against the bundled @electron-toolkit/utils 4.0.0.
+    cat > app/bootstrap.js <<'EOF'
+'use strict'
+Object.defineProperty(require('electron').app, 'isPackaged', {
+  value: true,
+  configurable: true
+})
+require('./out/main/main.js')
+EOF
+    node -e 'const fs=require("fs");const f="app/package.json";const p=JSON.parse(fs.readFileSync(f));p.main="./bootstrap.js";fs.writeFileSync(f,JSON.stringify(p,null,2))'
     cp -rL out app/out
     rm -rf app/out/compositor app/out/main/driver
     # prune's purge path leaves dangling .bin links (cp -rL dies on those), and
