@@ -21,6 +21,23 @@ let
     concatMapStringsSep
     ;
 
+  # Upstream's udev template (assets/linux/99-LIVI.rules.template, mirrored in
+  # files/ for eval-time rendering). Adapted for NixOS: the owner lines become
+  # group + uaccess, and the two absolute Debian paths point into the store.
+  ruleText =
+    builtins.replaceStrings
+      [
+        ''MODE="0660", OWNER="__USERNAME__"''
+        "/usr/local/lib/livi/livi-touch-filter"
+        "/sbin/sysctl"
+      ]
+      [
+        ''MODE="0660", GROUP="${cfg.usbRules.group}", TAG+="uaccess"''
+        "${cfg.package}/lib/livi/resources/livi-touch-filter"
+        "${pkgs.procps}/bin/sysctl"
+      ]
+      (builtins.readFile ./files/99-LIVI.rules.template);
+
   # LIVI's DEFAULT_BINDINGS (src/main/shared/types/Config.ts, v8.2.1). Spelled
   # out so a declared config is complete: a config.json that only carries the
   # changed keys would otherwise fall back to whatever the app decides.
@@ -225,6 +242,10 @@ in
   };
 
   config = mkIf cfg.enable {
+    # packages.txt satisfiers for the in-app "Missing Packages" check. Its
+    # probes are capability-based (binary on PATH / module importable); these
+    # are the NixOS providers. The lite tools cover a host without a desktop
+    # session — every NixOS host, by the app's own heuristic.
     environment.systemPackages =
       [ cfg.package ]
       ++ lib.optionals cfg.wirelessApTools [
@@ -232,14 +253,39 @@ in
         pkgs.dnsmasq
         pkgs.iw
       ]
+      ++ [
+        pkgs.bluez # bluetoothctl
+        pkgs.util-linux # rfkill
+        pkgs.pulseaudio # pactl
+        pkgs.avahi # avahi-daemon
+        pkgs.cage # kiosk compositor
+        pkgs.seatd # seat management
+        pkgs.wlr-randr # display configuration
+        pkgs.xdg-user-dirs # xdg-user-dir
+        pkgs.curl
+        # The helper's python modules (py: probes run `python3 -c import …`).
+        (pkgs.python3.withPackages (
+          ps: with ps; [
+            dbus-python
+            pygobject3
+            smbus2
+            pip
+          ]
+        ))
+      ]
       ++ cfg.extraPackages;
 
     services.pipewire.wireplumber.enable = mkIf cfg.wireplumber true;
 
-    services.udev.extraRules = mkIf cfg.usbRules.enable ''
-      # A phone presenting the Android Auto accessory interface.
-      SUBSYSTEM=="usb", ATTR{idVendor}=="1314", ATTR{idProduct}=="152*", MODE="0660", GROUP="${cfg.usbRules.group}", TAG+="uaccess"
-    '';
+    # The in-app USB check looks for this exact file carrying the template's
+    # LIVI-RULE-VERSION marker, so render the upstream template here instead of
+    # routing the rule through services.udev.extraRules — that covers the rule's
+    # function but not the file LIVI checks. If an upstream bump changes the
+    # marker the app asks to update; sync files/99-LIVI.rules.template then.
+    environment.etc = lib.mkIf cfg.usbRules.enable {
+      "udev/rules.d/99-LIVI.rules".text = ruleText;
+    };
+    systemd.services.systemd-udevd.restartTriggers = lib.mkIf cfg.usbRules.enable [ ruleText ];
 
     system.activationScripts.livi-config = mkIf (cfg.users != [ ]) {
       deps = [ "users" ];

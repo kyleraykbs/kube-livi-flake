@@ -73,6 +73,8 @@
   pixman,
   cairo,
   mesa,
+  # packages.txt's bluetooth-SPA probe is pointed at pipewire's store path.
+  pipewire,
   # Bundle assembly: the decoder chain plus the host libs the committed
   # GStreamer bundle expects its environment to provide (see bundleLibs).
   libdrm,
@@ -182,9 +184,12 @@ stdenv.mkDerivation {
   # 0002: resource lookup falls back to the app-adjacent resources dir — with a
   # separately-installed Electron (this package), process.resourcesPath points
   # at the Electron runtime and every packaged-asset lookup would miss.
+  # 0003: log each raw-key dispatch (started state included) so an on-device
+  # typing failure can be split into renderer-side vs phone-side from the log.
   patches = [
     ./patches/0001-aa-typing-keys.patch
     ./patches/0002-resources-root.patch
+    ./patches/0003-typing-probe-log.patch
   ];
 
   # meson/ninja are used explicitly in buildPhase for the compositor subproject;
@@ -392,7 +397,17 @@ EOF
     find $R/driver -name '*.pyc' -delete
 
     # Resource files read by name from RES at runtime / by install scripts.
-    cp scripts/install/packages.txt $R/packages.txt
+    # packages.txt's file: probes expect Debian's /usr/lib; on NixOS those libs
+    # live in the bundled decoder tree or the store, so point them at what this
+    # build actually ships (self-referential $R is fine — the launcher already
+    # does it). cmd:/py: probes are distro-neutral and stay as-is.
+    sed \
+      -e "s|file:/usr/lib/\*/libva\.so\.2|file:$R/gstreamer/${arch.bundle}/lib/libva.so.2|" \
+      -e "s|file:/usr/lib/\*/libva-drm\.so\.2|file:$R/gstreamer/${arch.bundle}/lib/libva-drm.so.2|" \
+      -e "s|file:/usr/lib/\*/libva-x11\.so\.2|file:$R/gstreamer/${arch.bundle}/lib/libva-x11.so.2|" \
+      -e "s|file:/usr/lib/\*/libssh\.so\.4|file:$R/gstreamer/${arch.bundle}/lib/libssh.so.4|" \
+      -e "s|file:/usr/lib/\*/spa-0\.2/bluez5|file:${pipewire}/lib/spa-0.2/bluez5|" \
+      scripts/install/packages.txt > $R/packages.txt
     cp -r assets/displays $R/displays
     cp assets/linux/99-LIVI.rules.template $R/
     cp assets/linux/99-LIVI-bt.sudoers.template $R/
