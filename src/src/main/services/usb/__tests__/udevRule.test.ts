@@ -2,6 +2,7 @@ import { execFileSync, spawn } from 'child_process'
 import { BrowserWindow, dialog } from 'electron'
 import fs from 'fs'
 import os from 'os'
+import path from 'path'
 import type { Mock } from 'vitest'
 import {
   checkAndInstallUdevRule,
@@ -9,8 +10,14 @@ import {
   udevRuleExists
 } from '../udevRule'
 
+// `app.getAppPath()` points at the packaged app in production, where the
+// assets sit next to it; here it stands in for the repo's assets/linux so
+// `resolveAssetPath` resolves them the same way.
 vi.mock('electron', () => ({
   BrowserWindow: vi.fn(),
+  app: {
+    getAppPath: () => path.join(process.cwd(), 'assets', 'linux', 'app.asar')
+  },
   dialog: {
     showMessageBox: vi.fn(),
     showErrorBox: vi.fn()
@@ -85,7 +92,11 @@ describe('udevRule', () => {
     })
     ruleFileFake('')
     mockExecFileSync.mockReturnValue(undefined)
-    mockShowMessageBox.mockResolvedValue({ response: 0 })
+    // Install once, then Skip. An unbounded "Retry" answer spins
+    // checkAndInstallUdevRule's retry loop; a regression in that path must fail
+    // an assertion instead of logging until the worker runs out of heap.
+    let dialogsAnswered = 0
+    mockShowMessageBox.mockImplementation(async () => ({ response: dialogsAnswered++ === 0 ? 0 : 1 }))
     mockSpawn.mockReturnValue(mkProc(0))
   })
 
