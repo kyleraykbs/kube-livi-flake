@@ -90,9 +90,10 @@ Notable keys:
 - `textMode` — physical-keyboard typing into the phone while streaming
   (default `true`; also toggleable in *Settings → Key Bindings*)
 - `navWhileStreaming` — keep the nav rail reachable while a phone streams
-  (default `true` in this fork): it floats above the projection and auto-hides
-  when idle; `false` is upstream's behaviour, where the rail is dropped on the
-  projection page. *Settings → Appearance*
+  (default `true` in this fork): the rail keeps its column and the compositor
+  scales the phone's display into the space beside it; `false` is upstream's
+  behaviour, where the rail is dropped on the projection page and the phone
+  keeps the full window. *Settings → Appearance*
 
 `bindings` keys: `up`, `down`, `left`, `right`, `selectUp`, `selectDown`,
 `back`, `knobLeft`, `knobRight`, `knobUp`, `knobDown`, `home`, `cycleSession`,

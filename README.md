@@ -31,11 +31,12 @@ A rolling list — append as things land:
   LIVI rewrites that file at runtime.
 - **Nav rail stays while projecting** — upstream hides the left rail the moment
   a phone streams, so settings/phone/dash become unreachable; this fork keeps it
-  reachable: it floats over the projection (which, being a compositor-placed
-  plane, stays full-bleed), auto-hides after a few seconds of inactivity like the
-  cluster/telemetry rails, and comes back on touch or keypress. *Settings →
-  Appearance → Navigation while projecting* turns it off for upstream's
-  always-hidden behaviour.
+  reachable. The rail keeps its own column and the compositor scales the phone's
+  display into the space beside it (the window reports the strip it reserves over
+  IPC, so the video plane and the phone's touch surface stay in step — nothing
+  runs underneath the rail). *Settings → Appearance → Navigation while
+  projecting* off instead drops the rail and gives the phone the full window,
+  upstream's behaviour.
 - **Stylix aware** — when stylix is part of the same home configuration, the
   phone's appearance (night/day), LIVI's dark mode and its background/accent
   colours come from the scheme. Declared settings win.

@@ -518,6 +518,22 @@ describe('GstVideo — linux host-process path', () => {
     expect(sockets[0].write).toHaveBeenCalledWith('videocfg main aux 0 0 800 480 1920 1080\n')
   })
 
+  test('setViewInsets sends a videoinsets line', async () => {
+    const m = await loadModule('linux', '/sock')
+    const v = new m.GstVideo({} as never, 'dash')
+    v.setViewInsets(56, 0)
+    sockets[0].emit('connect')
+    expect(sockets[0].write).toHaveBeenCalledWith('videoinsets dash 56 0\n')
+  })
+
+  test('setViewInsets clamps a negative strip', async () => {
+    const m = await loadModule('linux', '/sock')
+    const v = new m.GstVideo({} as never, 'main')
+    v.setViewInsets(-10, 12.6)
+    sockets[0].emit('connect')
+    expect(sockets[0].write).toHaveBeenCalledWith('videoinsets main 0 13\n')
+  })
+
   test('dispose stops the host player', async () => {
     const m = await loadModule('linux', '/sock')
     const v = new m.GstVideo({} as never)

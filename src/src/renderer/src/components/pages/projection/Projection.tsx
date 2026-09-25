@@ -631,7 +631,7 @@ const CarplayComponent: React.FC<CarplayProps> = ({
       id="projection-root"
       ref={mainElem}
       style={{
-        position: 'fixed',
+        position: 'absolute',
         inset: 0,
         width: '100%',
         height: '100%',

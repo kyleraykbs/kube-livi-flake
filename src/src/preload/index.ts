@@ -173,6 +173,9 @@ const api = {
     sendMultiTouch: (points: MultiTouchPoint[]): void =>
       ipcRenderer.send('projection-multi-touch', points),
     sendCommand: (key: string): void => ipcRenderer.send('projection-command', key),
+    // sidebar strip this window's UI reserves (px per side) → compositor video insets
+    setVideoInsets: (insets: { role: 'main' | 'dash' | 'aux'; left: number; right: number }): void =>
+      ipcRenderer.send('projection-video-insets', insets),
     onEvent: (callback: ApiCallback): (() => void) => {
       projectionEventHandlers.push(callback)
       projectionEventQueue.forEach(([evt, ...args]) => callback(evt, ...args))

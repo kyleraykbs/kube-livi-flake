@@ -10,6 +10,7 @@ import { ROUTES, UI } from '../../constants'
 import { useAutoHideNav } from '../../hooks/useAutoHideNav'
 import { useBlinkingTime } from '../../hooks/useBlinkingTime'
 import { useNetworkStatus } from '../../hooks/useNetworkStatus'
+import { useReportVideoInsets } from '../../hooks/useReportVideoInsets'
 import { getWindowRole } from '../../utils/windowRole'
 import { Nav } from '../navigation'
 import { useTabsConfig } from '../navigation/useTabsConfig'
@@ -36,23 +37,25 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
 
   const inAutoHideNavPage = pathname === ROUTES.CLUSTER || pathname === ROUTES.TELEMETRY
 
-  // While a phone streams, a kept rail (navWhileStreaming) floats over the
-  // projection instead of taking layout width: the video plane is placed by the
-  // compositor over the whole window and the phone's touch area spans it too, so
-  // reserving column width there would only desync the two. Floating means it
-  // auto-hides like the cluster/telemetry rails, and NAV_Z_INDEX keeps it above
-  // that touch area while it is up.
-  const streamingNavOverlay =
-    isStreaming && pathname === ROUTES.HOME && Boolean(settings?.navWhileStreaming)
-  const autoHideNav = inAutoHideNavPage || streamingNavOverlay
+  // While a phone streams with the rail kept (navWhileStreaming), the rail keeps its
+  // layout column: the compositor scales the video plane into the remaining width
+  // (useReportVideoInsets reports the strip), so the phone's display and its touch
+  // surface both stop beside the rail instead of running underneath it.
+  // A rail that is not shown while streaming (navWhileStreaming off) and the
+  // auto-hiding cluster/telemetry rails float over the content instead, which keeps
+  // the content column at the full window width there.
+  const hideNavHome = isStreaming && pathname === ROUTES.HOME && !settings?.navWhileStreaming
+  const autoHideNav = inAutoHideNavPage
+  const navOverlay = autoHideNav || hideNavHome
 
   const { hidden: autoHiddenNav } = useAutoHideNav(autoHideNav, navRef.current)
 
   const tabs = useTabsConfig(receivingVideo)
   const singleTab = tabs.length <= 1
 
-  const hideNavHome = isStreaming && pathname === ROUTES.HOME && !settings?.navWhileStreaming
   const hideNav = hideNavHome || (autoHideNav && autoHiddenNav)
+
+  useReportVideoInsets(mainRef)
 
   // Steering wheel position
   const isRhd = Number(settings?.hand ?? 0) === 1
@@ -87,10 +90,10 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
             borderRight: isRhd ? undefined : '1px solid #444',
             borderLeft: isRhd ? '1px solid #444' : undefined,
             flex: '0 0 auto',
-            position: autoHideNav ? 'absolute' : 'relative',
-            top: autoHideNav ? 0 : undefined,
-            left: autoHideNav && !isRhd ? 0 : undefined,
-            right: autoHideNav && isRhd ? 0 : undefined,
+            position: navOverlay ? 'absolute' : 'relative',
+            top: navOverlay ? 0 : undefined,
+            left: navOverlay && !isRhd ? 0 : undefined,
+            right: navOverlay && isRhd ? 0 : undefined,
             zIndex: UI.NAV_Z_INDEX,
             opacity: hideNav ? 0 : 1,
             transform: hideNav

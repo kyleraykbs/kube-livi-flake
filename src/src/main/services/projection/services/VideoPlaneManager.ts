@@ -44,8 +44,32 @@ export class VideoPlaneManager {
   private gstVideoClusterCodec: GstVideoCodec = 'h264'
   private clusterVisible = false
   private clusterStreamActive: boolean | null = null
+  // host-UI sidebar strip per window role (px), applied to that window's plane(s)
+  private readonly viewInsets: Partial<Record<ClusterScreen, { left: number; right: number }>> =
+    {}
 
   constructor(private readonly deps: VideoPlaneManagerDeps) {}
+
+  // A window's UI reports the sidebar strip it reserves on each side; the compositor
+  // scales that window's plane into the remaining width so the phone's display stays
+  // clear of the rail. Screens map 1:1 to the window that hosts them.
+  setViewInsets(role: ClusterScreen, left: number, right: number): void {
+    const l = Math.max(0, Math.round(left))
+    const r = Math.max(0, Math.round(right))
+    const prev = this.viewInsets[role]
+    if (prev && prev.left === l && prev.right === r) return
+    this.viewInsets[role] = { left: l, right: r }
+    if (role === 'main') this.applyInsets(this.gstVideo, 'main')
+    for (const [screen, plane] of this.gstVideoClusters) {
+      if (screen === role) this.applyInsets(plane, role)
+    }
+  }
+
+  private applyInsets(plane: GstVideo | null | undefined, role: ClusterScreen): void {
+    if (!plane) return
+    const i = this.viewInsets[role]
+    plane.setViewInsets(i?.left ?? 0, i?.right ?? 0)
+  }
 
   dispose(): void {
     this.gstVideo?.dispose()
@@ -115,6 +139,7 @@ export class VideoPlaneManager {
     }
     this.gstVideo.prepare(codec, atom)
     this.applyVideoCrop()
+    this.applyInsets(this.gstVideo, 'main')
     return created
   }
 
@@ -131,6 +156,7 @@ export class VideoPlaneManager {
         plane = new GstVideo(wc, `cluster-${screen}`, screen, clusterPlaneId(screen))
         plane.setVisible(this.clusterPlaneVisible(screen))
         this.applyClusterCrop(plane)
+        this.applyInsets(plane, screen)
         this.gstVideoClusters.set(screen, plane)
         created = true
       }
@@ -152,6 +178,7 @@ export class VideoPlaneManager {
       this.gstVideo.setVisible(this.gstVideoVisible)
       if (this.gstVideoCodecData) this.gstVideo.setCodecData(this.gstVideoCodecData)
       this.applyVideoCrop()
+      this.applyInsets(this.gstVideo, 'main')
       this.deps.emit({ type: 'projection', shown: true })
     }
     this.gstVideo.push(this.gstVideoCodec, nal)
@@ -180,6 +207,7 @@ export class VideoPlaneManager {
         plane.setVisible(this.clusterPlaneVisible(screen))
         if (this.gstVideoClusterCodecData) plane.setCodecData(this.gstVideoClusterCodecData)
         this.applyClusterCrop(plane) // fit to the configured cluster-stream AR
+        this.applyInsets(plane, screen)
         this.gstVideoClusters.set(screen, plane)
       }
       plane.push(this.gstVideoClusterCodec, nal)

@@ -160,6 +160,15 @@ class CompositorControl {
     this.flush()
   }
 
+  // Reserve the host UI's sidebar strip (px per side) around the tagged plane: the
+  // compositor scales the video into the remaining width instead of under the rail.
+  videoInsets(tag: string, left: number, right: number): void {
+    if (!this.enabled) return
+    const n = (v: number): number => Math.max(0, Math.round(v))
+    this.state.set(`insets:${tag}`, `videoinsets ${tag} ${n(left)} ${n(right)}\n`)
+    this.flush()
+  }
+
   // Toggle the tagged plane's visibility.
   videoshow(tag: string, visible: boolean): void {
     if (!this.enabled) return
@@ -532,6 +541,13 @@ export class GstVideo {
     // Linux: the compositor places + crops the tagged plane on its target screen
     compositorControl.videocfg(this.role, this.targetScreen, cropL, cropT, visW, visH, tierW, tierH)
     if (addon && this.player) this.applyRegion(addon)
+  }
+
+  // Host-UI sidebar width (px) reserved on each side of this plane's window; the
+  // compositor scales the plane into what is left of the output. Owned by
+  // VideoPlaneManager, which holds the per-window values.
+  setViewInsets(left: number, right: number): void {
+    compositorControl.videoInsets(this.role, left, right)
   }
 
   private applyRegion(a: GstAddon): void {

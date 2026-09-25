@@ -90,7 +90,7 @@ describe('AppLayout', () => {
     expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
   })
 
-  test('auto-hides the kept rail while streaming and reveals it on activity', async () => {
+  test('keeps the streaming rail in the layout so the video can sit beside it', async () => {
     mockStreaming = true
     mockNavWhileStreaming = true
     const navRef = createRef<HTMLDivElement>()
@@ -100,26 +100,40 @@ describe('AppLayout', () => {
         <div>Content</div>
       </AppLayout>
     )
-    const navHidden = () => container.querySelector('#content-root')?.getAttribute('data-nav-hidden')
+    const nav = container.querySelector('#nav-root') as HTMLElement
+    expect(nav.style.position).toBe('relative')
+    expect(nav.style.left).toBe('')
 
     act(() => {
       vi.advanceTimersByTime(3000)
     })
-    expect(navHidden()).toBe('1')
-
-    fireEvent.mouseMove(document)
-    expect(navHidden()).toBe('0')
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
   })
 
-  test('the kept rail floats above the projection touch surface', async () => {
+  test('floats the rail off the layout when it is hidden while streaming', async () => {
+    mockStreaming = true
+    mockNavWhileStreaming = false
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+    const nav = container.querySelector('#nav-root') as HTMLElement
+    expect(nav.style.position).toBe('absolute')
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('1')
+  })
+
+  test('keeps the rail above the projection overlay', async () => {
     mockStreaming = true
     mockNavWhileStreaming = true
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
     const { container } = render(
       <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
-        {/* mirrors Projection.tsx: the phone's touch surface spans the window */}
-        <div id="projection-root" style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+        {/* mirrors Projection.tsx: the phone's touch surface spans the content column */}
+        <div id="projection-root" style={{ position: 'absolute', inset: 0, zIndex: 999 }} />
       </AppLayout>
     )
     const navZ = Number((container.querySelector('#nav-root') as HTMLElement).style.zIndex)

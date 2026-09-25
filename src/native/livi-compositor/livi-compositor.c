@@ -22,6 +22,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
+#include "livi-video-layout.h"
 #include <wlr/backend.h>
 #include <wlr/interfaces/wlr_buffer.h>
 #include <wlr/backend/multi.h>
@@ -83,6 +84,8 @@ struct livi_video_cfg {
 	char screen[32];
 	bool has_crop;
 	double crop_l, crop_t, vis_w, vis_h, tier_w, tier_h;
+	// sidebar strip reserved by the host's UI on the left/right of the plane
+	double inset_l, inset_r;
 	bool has_visible;
 	bool visible;
 };
@@ -191,6 +194,8 @@ struct tinywl_toplevel {
 	char tag[64];
 	bool has_crop;
 	double crop_l, crop_t, vis_w, vis_h, tier_w, tier_h;
+	// sidebar strip reserved by the host's UI on the left/right of the plane
+	double inset_l, inset_r;
 	struct wl_list video_link;   // in server->videos
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -321,6 +326,8 @@ static void apply_cfg_to_video(struct tinywl_server *server, struct livi_video_c
 		v->vis_h = cfg->vis_h;
 		v->tier_w = cfg->tier_w;
 		v->tier_h = cfg->tier_h;
+		v->inset_l = cfg->inset_l;
+		v->inset_r = cfg->inset_r;
 		apply_video_layout(v);
 	}
 	if (cfg->has_visible) {
@@ -969,24 +976,24 @@ static void apply_video_layout(struct tinywl_toplevel *video) {
 	if (ow <= 0 || oh <= 0) {
 		return;
 	}
-	if (!video->has_crop || video->vis_w <= 0 || video->vis_h <= 0 ||
-			video->tier_w <= 0 || video->tier_h <= 0) {
-		wlr_xdg_toplevel_set_size(video->xdg_toplevel, ow, oh);
-		wlr_scene_node_set_position(&video->scene_tree->node, s->x, top);
-		return;
+	/* The host's UI reserves a sidebar strip on one side; scale the phone's display
+	 * into what is left of the output instead of running underneath it. */
+	int il = video->inset_l > 0 ? (int)lround(video->inset_l) : 0;
+	int ir = video->inset_r > 0 ? (int)lround(video->inset_r) : 0;
+	int aw = ow - il - ir;
+	if (aw < 1) {
+		aw = 1;
+		il = 0;
 	}
-	/* contain the content into the output (uniform scale, bars only on AR mismatch) */
-	double scx = (double)ow / video->vis_w;
-	double scy = (double)oh / video->vis_h;
-	double scale = scx < scy ? scx : scy;
-	double off_x = (ow - video->vis_w * scale) / 2.0;
-	double off_y = (oh - video->vis_h * scale) / 2.0;
-	int tw = (int)lround(video->tier_w * scale);
-	int th = (int)lround(video->tier_h * scale);
-	int px = (int)lround(s->x + off_x - video->crop_l * scale);
-	int py = (int)lround(top + off_y - video->crop_t * scale);
-	wlr_xdg_toplevel_set_size(video->xdg_toplevel, tw, th);
-	wlr_scene_node_set_position(&video->scene_tree->node, px, py);
+	struct livi_video_geom g = livi_fit_video(
+		s->x + il, top, aw, oh,
+		video->has_crop ? video->vis_w : 0,
+		video->has_crop ? video->vis_h : 0,
+		video->has_crop ? video->tier_w : 0,
+		video->has_crop ? video->tier_h : 0,
+		video->crop_l, video->crop_t);
+	wlr_xdg_toplevel_set_size(video->xdg_toplevel, g.w, g.h);
+	wlr_scene_node_set_position(&video->scene_tree->node, g.x, g.y);
 }
 
 static const char CAL_VERT_SRC[] =
@@ -2070,6 +2077,20 @@ static void ctrl_handle_line(struct tinywl_server *server, const char *line) {
 			struct tinywl_toplevel *v = find_video_by_tag(server, tag);
 			if (v != NULL) {
 				apply_cfg_to_video(server, cfg, v);
+			}
+		}
+		return;
+	}
+	if (sscanf(line, "videoinsets %63s %lf %lf", tag, &cl, &ct) == 3) {
+		struct livi_video_cfg *cfg = cfg_for_tag(server, tag, true);
+		if (cfg != NULL) {
+			cfg->inset_l = cl;
+			cfg->inset_r = ct;
+			struct tinywl_toplevel *v = find_video_by_tag(server, tag);
+			if (v != NULL) {
+				v->inset_l = cl;
+				v->inset_r = ct;
+				apply_video_layout(v);
 			}
 		}
 		return;

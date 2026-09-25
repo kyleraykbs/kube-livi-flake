@@ -1,4 +1,5 @@
 import type { Config, DongleFirmwareAction, DongleFwApiRaw } from '@shared/types'
+import type { ClusterScreen } from '@shared/utils'
 import type { WebContents } from 'electron'
 import type { FirmwareUpdateService } from '../driver/dongle/FirmwareUpdateService'
 import type { SendableMessage } from '../messages/sendable'
@@ -42,6 +43,7 @@ export interface ProjectionIpcHost {
   stop(): Promise<void>
   restartSession(): Promise<void>
   setVideoVisible(visible: boolean): void
+  setViewInsets(role: ClusterScreen, left: number, right: number): void
   pickPreferredTransport(): Transport | null
   switchTransport(): Promise<{ ok: boolean; active: Transport | null }>
   getTransportState(): TransportSnapshot

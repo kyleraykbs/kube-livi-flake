@@ -13,7 +13,8 @@ vi.mock('../../../video/GstVideo', () => ({
       setCodecData: vi.fn(),
       prepare: vi.fn(),
       push: vi.fn(),
-      setContentRegion: vi.fn()
+      setContentRegion: vi.fn(),
+      setViewInsets: vi.fn()
     }
   })
 }))
@@ -42,6 +43,7 @@ type PlaneMock = {
   prepare: ReturnType<typeof vi.fn>
   push: ReturnType<typeof vi.fn>
   setContentRegion: ReturnType<typeof vi.fn>
+  setViewInsets: ReturnType<typeof vi.fn>
 }
 
 function planes(): PlaneMock[] {
@@ -221,6 +223,43 @@ describe('VideoPlaneManager', () => {
       mgr.pushMain(Buffer.from([1]))
 
       expect(planes()[0].setContentRegion).toHaveBeenCalledWith(0, 0, 1920, 1080, 1920, 1080)
+    })
+  })
+
+  describe('view insets', () => {
+    test('a reported strip reaches the plane that spawns later', () => {
+      const { mgr } = mkMgr()
+
+      mgr.setViewInsets('main', 56, 0)
+      expect(gstMock).not.toHaveBeenCalled()
+
+      mgr.pushMain(Buffer.from([1]))
+
+      expect(planes()[0].setViewInsets).toHaveBeenCalledWith(56, 0)
+    })
+
+    test('insets only reach the planes of the reporting window', () => {
+      const { mgr } = mkMgr({ getConfig: vi.fn(() => CLUSTER_CFG) })
+      secondaryMock.mockReturnValue(mkSecondary() as never)
+
+      mgr.setViewInsets('dash', 0, 72)
+      mgr.prepareClusters('h264', Buffer.alloc(0))
+
+      expect(planes()[0].setViewInsets).toHaveBeenCalledWith(0, 0)
+      expect(planes()[1].setViewInsets).toHaveBeenCalledWith(0, 72)
+    })
+
+    test('an unchanged report is not resent and a live plane follows a change', () => {
+      const { mgr } = mkMgr()
+      mgr.setViewInsets('main', 56, 0)
+      mgr.pushMain(Buffer.from([1]))
+      planes()[0].setViewInsets.mockClear()
+
+      mgr.setViewInsets('main', 56, 0)
+      expect(planes()[0].setViewInsets).not.toHaveBeenCalled()
+
+      mgr.setViewInsets('main', 0, 0)
+      expect(planes()[0].setViewInsets).toHaveBeenCalledWith(0, 0)
     })
   })
 

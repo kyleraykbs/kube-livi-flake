@@ -6,7 +6,7 @@ import { ICON_120_B64, ICON_180_B64, ICON_256_B64 } from '@shared/assets/carIcon
 import type { Config, DevListEntry } from '@shared/types'
 import { PhoneWorkMode } from '@shared/types'
 import { isInputCommand, parseRawKeyCommand } from '@shared/types/InputCommand'
-import type { NavLocale } from '@shared/utils'
+import type { ClusterScreen, NavLocale } from '@shared/utils'
 import { clusterTargetScreens, isClusterDisplayed } from '@shared/utils'
 import { app, WebContents, webContents } from 'electron'
 import fs from 'fs'
@@ -985,6 +985,12 @@ export class ProjectionService {
     this.planes.setVideoVisible(visible)
   }
 
+  // Renderer reports the sidebar strip its window's UI reserves (px per side), so the
+  // compositor can scale the video plane into the space beside it
+  public setViewInsets(role: ClusterScreen, left: number, right: number): void {
+    this.planes.setViewInsets(role, left, right)
+  }
+
   // Cluster plane visibility (cluster:request) drives the main-screen plane only
   public setClusterVisible(visible: boolean): void {
     this.planes.setClusterVisible(visible)
@@ -1157,6 +1163,7 @@ export class ProjectionService {
       stop: () => this.stop(),
       restartSession: () => this.restartSession(),
       setVideoVisible: (v) => this.setVideoVisible(v),
+      setViewInsets: (role, left, right) => this.setViewInsets(role, left, right),
       pickPreferredTransport: () => this.pickPreferredTransport(),
       switchTransport: () => this.switchTransport(),
       getTransportState: () => this.getTransportState(),

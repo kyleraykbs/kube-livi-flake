@@ -151,6 +151,7 @@ declare global {
         sendTouch(x: number, y: number, action: number): void
         sendMultiTouch(points: MultiTouchPoint[]): void
         sendCommand(key: string): void
+        setVideoInsets(insets: { role: 'main' | 'dash' | 'aux'; left: number; right: number }): void
 
         onEvent(callback: (event: unknown, ...args: unknown[]) => void): () => void
 
