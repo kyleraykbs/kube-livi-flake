@@ -165,8 +165,9 @@ in
       '';
       description = ''
         Keys written verbatim into LIVI's config.json — the full surface, see
-        `src/main/shared/types/Config.ts` upstream (`DefaultConfig.ts` for the
-        defaults). Notable ones: `appearanceMode` is the Phone Appearance
+        `src/main/shared/types/Config.ts` in the vendored `src/` tree
+        (`DefaultConfig.ts` for the defaults). Notable ones: `appearanceMode` is
+        the Phone Appearance
         setting, where `"auto"` sends no day/night override at all and
         `"night"`/`"day"` pin the phone's UI over the session; `nightMode` is
         the value the telemetry adapters push; `darkMode` is LIVI's own UI.

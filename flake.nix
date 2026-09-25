@@ -1,5 +1,5 @@
 {
-  description = "LIVI (CarPlay / Android Auto head unit) packaged for NixOS";
+  description = "kube-livi — LIVI (CarPlay / Android Auto head unit) packaged for NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

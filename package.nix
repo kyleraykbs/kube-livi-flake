@@ -223,10 +223,6 @@ stdenv.mkDerivation {
   # (fatal in a sandbox) and only honour the CI variable for that.
   CI = "true";
 
-  # pnpm's isolated linker would leave node_modules/<pkg> as symlinks into
-  # .pnpm; the shipped app carries a flat tree and gstHost.ts' app.asar ->
-  # app.asar.unpacked rewrite only resolves correctly with one. Hoisting also
-  # matches what electron-builder packs.
   postPatch = ''
     # Hoisted linker: the shipped app has a flat node_modules and gstHost.ts'
     # app.asar -> app.asar.unpacked rewrite resolves only in a flat tree.
@@ -428,7 +424,7 @@ EOF
     longDescription = ''
       Native CarPlay & Android Auto head unit: wired and wireless projection,
       GStreamer video pipeline, touch/D-Pad/hard-key input, multi-session.
-      Built from source with the Android Auto typing patch applied.
+      Built from source from the vendored fork in src/.
     '';
     homepage = "https://github.com/f-io/LIVI";
     license = lib.licenses.gpl3Only;
