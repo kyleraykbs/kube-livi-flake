@@ -50,6 +50,29 @@ rewrites that file while it runs and keeps its own mirror in
 `~/.local/share/LIVI/`, so everything the app wrote itself (device history,
 window bounds, dismissed dialogs) survives and the declared keys win.
 
+## Stylix
+
+If stylix is part of the same home configuration, the module reads the scheme
+and fills in these keys as *defaults* — declaring any of them under
+`programs.livi.settings` overrides just that key:
+
+| Key | Comes from |
+| --- | --- |
+| `darkMode`, `nightMode`, `appearanceMode` | the scheme's side: a dark background means `true` / `true` / `"night"`, a light one `false` / `false` / `"day"` |
+| `backgroundColorDark` or `backgroundColorLight` | `base00` |
+| `primaryColorDark` or `primaryColorLight` | `base0D` (the accent stylix's own targets use) |
+| `highlightColorDark` or `highlightColorLight` | `base0E` |
+
+Which side is picked is decided by `base00`'s luminance, not by
+`stylix.polarity`: polarity defaults to `"dark"` and is not derived from the
+scheme, so a light scheme without an explicit polarity would otherwise paint
+the dark side. `polarity` is only a fallback for stylix versions that do not
+expose the palette's rgb components. LIVI keeps a Light and a Dark value for
+each colour and picks by `darkMode`, so only the matching side is set.
+
+With no stylix in the configuration nothing is derived and the keys stay
+untouched.
+
 ## Config surface (`settings`)
 
 Freeform: every key lands in `config.json` as-is. The full schema and defaults

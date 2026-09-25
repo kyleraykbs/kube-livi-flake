@@ -29,6 +29,9 @@ A rolling list — append as things land:
 - **home-manager module** — the per-user side: declarative `config.json`
   (`settings`, `bindings`) merged into the live file at every activation, since
   LIVI rewrites that file at runtime.
+- **Stylix aware** — when stylix is part of the same home configuration, the
+  phone's appearance (night/day), LIVI's dark mode and its background/accent
+  colours come from the scheme. Declared settings win.
 - **Built from source** — app packed as asar on nixpkgs' Electron, native
   addons rebuilt against Electron headers, wlroots 0.20 compositor built
   static from the pinned release tarball. First-class on `x86_64-linux` and
