@@ -91,6 +91,18 @@ nix build .#livi            # build for the host
 `src/` is the fork; edit it directly. Dependency pins live in
 [`sources.nix`](sources.nix) — see [docs/flake.md](docs/flake.md#pins).
 
+The flake build runs vite/esbuild only — no type check — so before pushing:
+
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+# the CarPlay stack suites require the native addon:
+(cd native/crypto && pnpm exec node-gyp rebuild --arch=x64 \
+  --target=$(node -p "require('electron/package.json').version") \
+  --dist-url=https://artifacts.electronjs.org/headers/dist)
+pnpm run typecheck
+pnpm vitest run
+```
+
 ## License
 
 GPL-3.0, same as [upstream LIVI](https://github.com/f-io/LIVI). The vendored
