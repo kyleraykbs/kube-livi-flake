@@ -1,10 +1,10 @@
 # LIVI built from source, for NixOS.
 #
-# Why from source: the AA typing patch (patches/0001-aa-typing-keys.patch)
-# changes runtime logic and the shipped app.asar is minified — a prebuilt
-# AppImage can be wrapped but not patched. This derivation builds the app with
-# the patch applied and assembles the Electron app directory by hand instead of
-# running electron-builder.
+# This is a fork of f-io/LIVI v8.2.1 vendored in ./src — upstream is fetched
+# nowhere and our changes (AA typing keys and later work) live directly in the
+# tree. The shipped app.asar is minified, so a prebuilt AppImage could never be
+# patched anyway. This derivation builds the app with the fork and assembles
+# the Electron app directory by hand instead of running electron-builder.
 #
 # Runtime layout contract (reverse-engineered from v8.2.1; RES =
 # process.resourcesPath = <appDir>/resources, ASAR = app.getAppPath()):
@@ -43,7 +43,6 @@
 {
   lib,
   stdenv,
-  fetchFromGitHub,
   fetchurl,
   fetchPnpmDeps,
   pnpmConfigHook,
@@ -95,7 +94,6 @@
   libxext,
   libxrender,
   version ? "8.2.1",
-  srcHash ? "sha256-9H17QoSleIJ/WWSFujz6HGdVuF90mxXovyXIxXkrPps=",
   pnpmDepsHash ? "sha256-iRMCkqs6RFBhjbntf8ulwsajkN8JDf/NmbIeYtBI6T4=",
 }:
 
@@ -174,26 +172,7 @@ stdenv.mkDerivation {
   pname = "livi";
   inherit version;
 
-  src = fetchFromGitHub {
-    owner = "f-io";
-    repo = "LIVI";
-    rev = "v${version}";
-    hash = srcHash;
-  };
-
-  # 0002: resource lookup falls back to the app-adjacent resources dir — with a
-  # separately-installed Electron (this package), process.resourcesPath points
-  # at the Electron runtime and every packaged-asset lookup would miss.
-  # 0003: log each raw-key dispatch (started state included) so an on-device
-  # typing failure can be split into renderer-side vs phone-side from the log.
-  # 0004: raw keys die in SendCommand's CommandMapping lookup, so route
-  # key:<code> at the IPC boundary as a SendRawKey that bypasses the enum.
-  patches = [
-    ./patches/0001-aa-typing-keys.patch
-    ./patches/0002-resources-root.patch
-    ./patches/0003-typing-probe-log.patch
-    ./patches/0004-typing-sendrawkey.patch
-  ];
+  src = ./src;
 
   # meson/ninja are used explicitly in buildPhase for the compositor subproject;
   # the root of the tree is not a meson project, so the meson hook must not
@@ -205,12 +184,7 @@ stdenv.mkDerivation {
   pnpmDeps = fetchPnpmDeps {
     pname = "livi";
     inherit version;
-    src = fetchFromGitHub {
-      owner = "f-io";
-      repo = "LIVI";
-      rev = "v${version}";
-      hash = srcHash;
-    };
+    src = ./src;
     fetcherVersion = 4;
     pnpm = pnpm_11;
     hash = pnpmDepsHash;

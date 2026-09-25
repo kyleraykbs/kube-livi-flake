@@ -11,13 +11,13 @@
     let
       sources = import ./sources.nix;
 
-      # One package, built from source and pinned in sources.nix. Pass
-      # different version/srcHash/pnpmDepsHash through pkgs.callPackage to
-      # build another release.
+      # One package, built from the fork in ./src and pinned in sources.nix.
+      # Pass different version/pnpmDepsHash through pkgs.callPackage to build
+      # another release.
       packageFor =
         pkgs:
         pkgs.callPackage ./package.nix {
-          inherit (sources) version srcHash pnpmDepsHash;
+          inherit (sources) version pnpmDepsHash;
         };
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
