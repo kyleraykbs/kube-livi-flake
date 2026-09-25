@@ -1,0 +1,75 @@
+--- a/src/main/services/projection/messages/sendable.ts
++++ b/src/main/services/projection/messages/sendable.ts
+@@ -22,6 +22,16 @@
+   }
+ }
+ 
++/** Raw Android keycode towards the phone (typing); bypasses CommandMapping. */
++export class SendRawKey extends SendableMessage {
++  readonly keyCode: number
++
++  constructor(keyCode: number) {
++    super()
++    this.keyCode = keyCode
++  }
++}
++
+ export class SendBluetoothPairedList extends SendableMessage {
+   readonly listText: string
+ 
+--- a/src/main/services/projection/ipc/input.ts
++++ b/src/main/services/projection/ipc/input.ts
+@@ -1,5 +1,6 @@
+ import { registerIpcHandle, registerIpcOn } from '@main/ipc/register'
+-import { SendCommand, SendMultiTouch, SendTouch } from '../messages/sendable'
++import { parseRawKeyCommand } from '@shared/types/InputCommand'
++import { SendCommand, SendMultiTouch, SendRawKey, SendTouch } from '../messages/sendable'
+ import type { ProjectionIpcHost } from './types'
+ 
+ type MultiTouchPoint = { id: number; x: number; y: number; action: number }
+@@ -37,10 +38,15 @@
+     }
+   })
+ 
+-  registerIpcOn(
+-    'projection-command',
+-    (_evt, command: ConstructorParameters<typeof SendCommand>[0]) => {
+-      host.send(new SendCommand(command))
++  registerIpcOn('projection-command', (_evt, command: string) => {
++    // Typing: `key:<Android keycode>` from the UI's physical keyboard. Routed
++    // as a SendRawKey because SendCommand's constructor maps its argument
++    // through CommandMapping, which turns raw keys into undefined.
++    const rawKey = parseRawKeyCommand(command)
++    if (rawKey !== null) {
++      host.send(new SendRawKey(rawKey))
++      return
+     }
+-  )
++    host.send(new SendCommand(command as ConstructorParameters<typeof SendCommand>[0]))
++  })
+ }
+--- a/src/main/services/projection/driver/aa/AaSession.ts
++++ b/src/main/services/projection/driver/aa/AaSession.ts
+@@ -16,6 +16,7 @@
+   SendCommand,
+   SendDisconnectPhone,
+   SendMultiTouch,
++  SendRawKey,
+   SendTouch
+ } from '@projection/messages/sendable'
+ import type { Config } from '@shared/types'
+@@ -482,6 +483,14 @@
+   async send(msg: SendableMessage): Promise<boolean> {
+     if (!this._aa) return false
+ 
++    // Typing: a raw Android keycode from the physical keyboard (UI path via
++    // the projection-command IPC, or Bluetooth via dispatchRemoteInput).
++    if (msg instanceof SendRawKey) {
++      console.log(`[AaSession] raw key ${msg.keyCode} -> sendButton`)
++      this.handleRawKey(msg.keyCode)
++      return true
++    }
++
+     if (msg instanceof SendTouch) {
+       const usableW = this._touchW - this._touchInsetLeft - this._touchInsetRight
+       const usableH = this._touchH - this._touchInsetTop - this._touchInsetBottom

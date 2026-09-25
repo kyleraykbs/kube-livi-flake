@@ -186,14 +186,13 @@ stdenv.mkDerivation {
   # at the Electron runtime and every packaged-asset lookup would miss.
   # 0003: log each raw-key dispatch (started state included) so an on-device
   # typing failure can be split into renderer-side vs phone-side from the log.
-  # 0004: the UI keyboard's raw keys arrive as SendCommand at AaSession.send
-  # (the projection-command IPC hop), not at dispatchRemoteInput (Bluetooth
-  # only) — route them to sendButton before the CommandMapping no-op fallthrough.
+  # 0004: raw keys die in SendCommand's CommandMapping lookup, so route
+  # key:<code> at the IPC boundary as a SendRawKey that bypasses the enum.
   patches = [
     ./patches/0001-aa-typing-keys.patch
     ./patches/0002-resources-root.patch
     ./patches/0003-typing-probe-log.patch
-    ./patches/0004-typing-route-at-send.patch
+    ./patches/0004-typing-sendrawkey.patch
   ];
 
   # meson/ninja are used explicitly in buildPhase for the compositor subproject;
