@@ -9,7 +9,7 @@
  import { CommandMapping, MultiTouchAction, TouchAction } from '@shared/types/ProjectionEnums'
  import {
    clusterTargetScreens,
-@@ -501,6 +501,16 @@
+@@ -501,6 +501,18 @@
  
      if (msg instanceof SendCommand) {
        const cmd = msg.value
@@ -17,11 +17,13 @@
 +      // here (the projection-command IPC wraps it in a SendCommand), not via
 +      // dispatchRemoteInput — that hop only carries Bluetooth events. Forward
 +      // it as a key event before the CommandMapping switch, which would no-op.
-+      const rawKey = parseRawKeyCommand(cmd as string)
-+      if (rawKey !== null) {
-+        console.log(`[AaSession] raw key ${rawKey} -> sendButton`)
-+        this.handleRawKey(rawKey)
-+        return true
++      if (typeof cmd === 'string') {
++        const rawKey = parseRawKeyCommand(cmd)
++        if (rawKey !== null) {
++          console.log(`[AaSession] raw key ${rawKey} -> sendButton`)
++          this.handleRawKey(rawKey)
++          return true
++        }
 +      }
        if (DEBUG) console.log(`[INPUT] cmd=${cmd} (${CommandMapping[cmd] ?? '?'})`)
  
