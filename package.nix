@@ -48,7 +48,6 @@
   fetchPnpmDeps,
   pnpmConfigHook,
   writableTmpDirAsHomeHook,
-  writeShellScript,
   pnpm_11,
   nodejs,
   node-gyp,
@@ -168,10 +167,6 @@ let
     ]
   );
 
-  liviWrapper = writeShellScript "livi" ''
-    export PATH=${helperPython}/bin:$PATH
-    exec ${electron_43}/bin/electron ${placeholder "out"}/lib/livi/resources/app.asar "$@"
-  '';
 in
 stdenv.mkDerivation {
   pname = "livi";
@@ -401,7 +396,16 @@ Categories=Utility;
 StartupWMClass=dev.f-io.livi
 EOF
 
-    install -Dm755 ${liviWrapper} $out/bin/livi
+    # Launcher: generated here so the app path is this derivation's $out. A
+    # pre-built writeShellScript cannot do this — placeholder "out" inside it
+    # resolves to the script's own store path, not this app tree.
+    mkdir -p $out/bin
+    cat > $out/bin/livi <<EOF
+#!${stdenv.shell}
+export PATH=${helperPython}/bin:\$PATH
+exec ${electron_43}/bin/electron $out/lib/livi/resources/app.asar "\$@"
+EOF
+    chmod 755 $out/bin/livi
 
     runHook postInstall
   '';
