@@ -51,6 +51,7 @@
     "clusterStream": "Cluster Stream",
     "fftDelay": "FFT Delay",
     "keyBindings": "Key Bindings",
+    "textMode": "Text mode",
     "up": "Up",
     "down": "Down",
     "left": "Left",

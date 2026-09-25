@@ -586,6 +586,13 @@ export const generalSchema: SettingsNode<Config> = {
       path: '',
       children: [
         {
+          type: 'checkbox',
+          label: 'Text mode',
+          labelKey: 'settings.textMode',
+          icon: 'keyBindings',
+          path: 'textMode'
+        },
+        {
           type: 'keybinding',
           label: 'Up',
           labelKey: 'settings.up',

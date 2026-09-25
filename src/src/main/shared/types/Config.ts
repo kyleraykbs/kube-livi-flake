@@ -186,6 +186,9 @@ export type Config = {
   autoConn: boolean
   autoSwitchOnReverse: boolean
 
+  // Physical keyboard types into the phone while projecting (bound keys too)
+  textMode: boolean
+
   // LIVI UI
   startPage: 'home' | 'media' | 'maps' | 'telemetry' | 'camera' | 'settings'
   language: string

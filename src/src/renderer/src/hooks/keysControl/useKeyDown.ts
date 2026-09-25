@@ -97,6 +97,27 @@ export const useKeyDown = ({
       const isEnter = code === 'Enter' || code === 'NumpadEnter'
       const isSelectDown = code === (b?.selectDown || '')
 
+      // Text mode (default on): while the phone streams, printable keys type
+      // even when bound to a command; commands stay on the non-printable keys.
+      // Toggle in Settings > Key Bindings.
+      const textMode = settings?.textMode ?? true
+      const typingKeyCode = androidKeycodeForDomCode(code)
+      if (
+        textMode &&
+        typingKeyCode !== null &&
+        receivingVideo &&
+        !isFormField(active) &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey
+      ) {
+        onSetKeyCommand(rawKeyCommand(typingKeyCode) as KeyCommand)
+        onSetCommandCounter((p) => p + 1)
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
       if (code === (b?.cycleSession || 'KeyS') && !event.repeat && !isFormField(active)) {
         void window.projection?.ipc?.cycleSession?.()?.catch(() => {})
         event.preventDefault()

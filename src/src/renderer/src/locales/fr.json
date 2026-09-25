@@ -51,6 +51,7 @@
     "clusterStream": "Flux du compteur",
     "fftDelay": "Délai FFT",
     "keyBindings": "Mappage des touches",
+    "textMode": "Mode texte",
     "up": "Up",
     "down": "Down",
     "left": "Left",
