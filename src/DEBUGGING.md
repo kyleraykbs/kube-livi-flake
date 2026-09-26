@@ -54,6 +54,7 @@ LIVI_GST_DEBUG=1 ./LIVI*.AppImage
 | --- | --- |
 | `LIVI_WLR_DEBUG=1` | Raise the nested wlroots compositor log level to `WLR_DEBUG`. |
 | `LIVI_DEBUG_BG=1` | Paint a magenta debug background in the compositor, to see the layout and video planes. |
+| `LIVI_DEBUG_LAYOUT=1` | Log the geometry applied to each video plane (`w x h + x + y`, available box, sidebar insets). |
 | `LIVI_NO_COMPOSITOR=1` | Start without the nested compositor. |
 
 ### CarPlay, Bluetooth and Wi-Fi helper
