@@ -73,6 +73,12 @@ each colour and picks by `darkMode`, so only the matching side is set.
 With no stylix in the configuration nothing is derived and the keys stay
 untouched.
 
+The compositor-drawn titlebar follows the same colours: the app pushes the
+resolved background (the same value as the backdrop plane) and its own text
+colour for the mode to the compositor, so the bar and its glyphs track the
+scheme on every screen. Without a compositor (macOS) the window keeps the
+native titlebar.
+
 ## Config surface (`settings`)
 
 Freeform: every key lands in `config.json` as-is. The full schema and defaults

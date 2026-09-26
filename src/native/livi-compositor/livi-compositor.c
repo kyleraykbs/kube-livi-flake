@@ -243,6 +243,11 @@ struct livi_screen {
 	struct wlr_scene_buffer *btn_fs;
 	struct wlr_scene_buffer *btn_close;
 	int titlebar_w;
+	// Host-theme colours for the compositor-drawn decorations (bar + title + controls),
+	// set by the "titlebar" control line; the literals below are the fallback.
+	float titlebar_color[4];
+	float titlebar_fg[4];
+	bool has_titlebar_colors;
 	bool fullscreen;
 };
 
@@ -1320,16 +1325,16 @@ static void livi_scene_set_cairo(struct wlr_scene_buffer *sb, cairo_surface_t *s
 
 enum livi_btn_sym { LIVI_SYM_MIN, LIVI_SYM_FS, LIVI_SYM_CLOSE };
 
-static cairo_surface_t *livi_draw_button(enum livi_btn_sym sym, int w, int h) {
+static cairo_surface_t *livi_draw_button(enum livi_btn_sym sym, int w, int h, const float *fg) {
 	cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
 	cairo_t *cr = cairo_create(s);
 	double cx = w / 2.0, cy = h / 2.0;
 	double rad = h * 0.34;
 	cairo_arc(cr, cx, cy, rad, 0, 2 * M_PI);
-	cairo_set_source_rgba(cr, 1, 1, 1, 0.10);
+	cairo_set_source_rgba(cr, fg[0], fg[1], fg[2], 0.10);
 	cairo_fill(cr);
 
-	cairo_set_source_rgba(cr, 1, 1, 1, 0.80);
+	cairo_set_source_rgba(cr, fg[0], fg[1], fg[2], 0.80);
 	cairo_set_line_width(cr, 1.5);
 	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 	cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
@@ -1359,7 +1364,7 @@ static cairo_surface_t *livi_draw_button(enum livi_btn_sym sym, int w, int h) {
 	return s;
 }
 
-static cairo_surface_t *livi_draw_title(const char *text, int h) {
+static cairo_surface_t *livi_draw_title(const char *text, int h, const float *fg) {
 	cairo_surface_t *probe = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1);
 	cairo_t *pc = cairo_create(probe);
 	cairo_select_font_face(pc, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
@@ -1376,7 +1381,7 @@ static cairo_surface_t *livi_draw_title(const char *text, int h) {
 	cairo_t *cr = cairo_create(s);
 	cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
 	cairo_set_font_size(cr, fsize);
-	cairo_set_source_rgba(cr, 1, 1, 1, 0.85);
+	cairo_set_source_rgba(cr, fg[0], fg[1], fg[2], 0.85);
 	cairo_move_to(cr, 2 - ext.x_bearing, (h - ext.height) / 2.0 - ext.y_bearing);
 	cairo_show_text(cr, text);
 	cairo_destroy(cr);
@@ -1384,14 +1389,26 @@ static cairo_surface_t *livi_draw_title(const char *text, int h) {
 	return s;
 }
 
-static cairo_surface_t *livi_draw_titlebar(int w, int h) {
+static cairo_surface_t *livi_draw_titlebar(int w, int h, const float *bg) {
 	cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
 	cairo_t *cr = cairo_create(s);
-	cairo_set_source_rgba(cr, 0.13, 0.13, 0.16, 1.0);
+	cairo_set_source_rgba(cr, bg[0], bg[1], bg[2], bg[3]);
 	cairo_paint(cr);
 	cairo_destroy(cr);
 	cairo_surface_flush(s);
 	return s;
+}
+
+/* The decorations follow the host theme once the app sends "titlebar"; until then the
+ * original literals keep the compositor usable standalone. */
+static const float *titlebar_bg(const struct livi_screen *s) {
+	static const float fallback[4] = {0.13f, 0.13f, 0.16f, 1.0f};
+	return s->has_titlebar_colors ? s->titlebar_color : fallback;
+}
+
+static const float *titlebar_fg(const struct livi_screen *s) {
+	static const float fallback[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	return s->has_titlebar_colors ? s->titlebar_fg : fallback;
 }
 
 static void apply_ui_layout(struct livi_screen *s) {
@@ -1410,7 +1427,7 @@ static void apply_ui_layout(struct livi_screen *s) {
 		wlr_scene_node_set_enabled(&s->titlebar->node, show);
 		wlr_scene_node_set_position(&s->titlebar->node, s->x, 0);
 		if (show && ow != s->titlebar_w) {
-			livi_scene_set_cairo(s->titlebar, livi_draw_titlebar(ow, LIVI_TITLEBAR_H));
+			livi_scene_set_cairo(s->titlebar, livi_draw_titlebar(ow, LIVI_TITLEBAR_H, titlebar_bg(s)));
 			s->titlebar_w = ow;
 		}
 	}
@@ -1527,6 +1544,35 @@ static const char *role_title(const char *role) {
 	return role;
 }
 
+/* (Re)render the compositor-drawn decorations with the screen's current colours. */
+static void livi_redraw_deco(struct livi_screen *s) {
+	if (s == NULL) {
+		return;
+	}
+	const float *fg = titlebar_fg(s);
+	if (s->titlebar != NULL && s->width > 0) {
+		livi_scene_set_cairo(s->titlebar,
+			livi_draw_titlebar(s->width, LIVI_TITLEBAR_H, titlebar_bg(s)));
+		s->titlebar_w = s->width;
+	}
+	if (s->title != NULL) {
+		livi_scene_set_cairo(s->title,
+			livi_draw_title(role_title(s->role), LIVI_TITLEBAR_H, fg));
+	}
+	if (s->btn_min != NULL) {
+		livi_scene_set_cairo(s->btn_min,
+			livi_draw_button(LIVI_SYM_MIN, LIVI_BTN_W, LIVI_TITLEBAR_H, fg));
+	}
+	if (s->btn_fs != NULL) {
+		livi_scene_set_cairo(s->btn_fs,
+			livi_draw_button(LIVI_SYM_FS, LIVI_BTN_W, LIVI_TITLEBAR_H, fg));
+	}
+	if (s->btn_close != NULL) {
+		livi_scene_set_cairo(s->btn_close,
+			livi_draw_button(LIVI_SYM_CLOSE, LIVI_BTN_W, LIVI_TITLEBAR_H, fg));
+	}
+}
+
 static void server_new_output(struct wl_listener *listener, void *data) {
 	struct tinywl_server *server =
 		wl_container_of(listener, server, new_output);
@@ -1624,14 +1670,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 	s->btn_min = wlr_scene_buffer_create(server->layer_deco, NULL);
 	s->btn_fs = wlr_scene_buffer_create(server->layer_deco, NULL);
 	s->btn_close = wlr_scene_buffer_create(server->layer_deco, NULL);
-	if (s->title != NULL)
-		livi_scene_set_cairo(s->title, livi_draw_title(role_title(s->role), LIVI_TITLEBAR_H));
-	if (s->btn_min != NULL)
-		livi_scene_set_cairo(s->btn_min, livi_draw_button(LIVI_SYM_MIN, LIVI_BTN_W, LIVI_TITLEBAR_H));
-	if (s->btn_fs != NULL)
-		livi_scene_set_cairo(s->btn_fs, livi_draw_button(LIVI_SYM_FS, LIVI_BTN_W, LIVI_TITLEBAR_H));
-	if (s->btn_close != NULL)
-		livi_scene_set_cairo(s->btn_close, livi_draw_button(LIVI_SYM_CLOSE, LIVI_BTN_W, LIVI_TITLEBAR_H));
+	livi_redraw_deco(s);
 
 	/* a UI/video toplevel may have mapped before this output existed, reflow onto it now */
 	apply_ui_layout(s);
@@ -2125,6 +2164,27 @@ static void ctrl_handle_line(struct tinywl_server *server, const char *line) {
 				wlr_scene_rect_set_color(s->backdrop, s->backdrop_color);
 			}
 		}
+		return;
+	}
+	// Host theme for the compositor-drawn decorations: bar colour then glyph colour.
+	int tgr, tgg, tgb, tfr, tfg, tfb;
+	if (sscanf(line, "titlebar %d %d %d %d %d %d",
+			&tgr, &tgg, &tgb, &tfr, &tfg, &tfb) == 6) {
+		for (int i = 0; i < server->n_screens; i++) {
+			struct livi_screen *s = &server->screens[i];
+			s->titlebar_color[0] = (float)tgr / 255.0f;
+			s->titlebar_color[1] = (float)tgg / 255.0f;
+			s->titlebar_color[2] = (float)tgb / 255.0f;
+			s->titlebar_color[3] = 1.0f;
+			s->titlebar_fg[0] = (float)tfr / 255.0f;
+			s->titlebar_fg[1] = (float)tfg / 255.0f;
+			s->titlebar_fg[2] = (float)tfb / 255.0f;
+			s->titlebar_fg[3] = 1.0f;
+			s->has_titlebar_colors = true;
+			livi_redraw_deco(s);
+		}
+		wlr_log(WLR_INFO, "livi: titlebar colours -> bar %d,%d,%d glyphs %d,%d,%d",
+			tgr, tgg, tgb, tfr, tfg, tfb);
 		return;
 	}
 	double ga, co, cr, cg, cb;

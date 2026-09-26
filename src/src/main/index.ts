@@ -33,8 +33,10 @@ import { checkAndInstallUdevRule } from './services/usb/udevRule'
 import {
   backdropHex,
   setCompositorBackdrop,
+  setCompositorTitlebar,
   setMacBackdrop,
-  setStreamGamma
+  setStreamGamma,
+  titlebarFgHex
 } from './services/video/GstVideo'
 import { createMainWindow, getMainWindow } from './window/createWindow'
 import { setupSecondaryWindows } from './window/secondaryWindows'
@@ -88,10 +90,12 @@ app.whenReady().then(async () => {
   setupSecondaryWindows(runtimeState)
 
   // Bottom plane = theme background colour. Linux: the compositor draws the backdrop. macOS: paint
-  // the window content view itself. Apply now and on every config change.
+  // the window content view itself. The compositor-drawn titlebar follows the same colours (bar =
+  // background, glyphs = text). Apply now and on every config change.
   const applyBackdrop = (cfg: Config): void => {
     const color = backdropHex(cfg.darkMode, cfg.backgroundColorDark, cfg.backgroundColorLight)
     setCompositorBackdrop(color)
+    setCompositorTitlebar(color, titlebarFgHex(cfg.darkMode))
     for (const w of BrowserWindow.getAllWindows()) setMacBackdrop(w, color)
   }
   applyBackdrop(runtimeState.config)

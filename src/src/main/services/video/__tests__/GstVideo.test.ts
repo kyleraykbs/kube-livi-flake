@@ -151,6 +151,14 @@ describe('compositor control (linux + control path)', () => {
     expect(sock.write).toHaveBeenCalledWith('backdrop 255 128 0\n')
   })
 
+  test('writes the titlebar colours on connect', async () => {
+    const m = await loadModule('linux', '/sock')
+    m.setCompositorTitlebar('#1d2021', '#ffffff')
+
+    sockets[0].emit('connect')
+    expect(sockets[0].write).toHaveBeenCalledWith('titlebar 29 32 33 255 255 255\n')
+  })
+
   test('writes a sized and an unsized screen line', async () => {
     const m = await loadModule('linux', '/sock')
 
@@ -870,5 +878,13 @@ describe('backdrop helpers', () => {
     expect(m.backdropHex(false, '#111111', '#eeeeee')).toBe('#eeeeee')
     expect(m.backdropHex(true)).toBe('#000000')
     expect(m.backdropHex(false)).toBe('#d4d4d4')
+  })
+})
+
+describe('titlebar helpers', () => {
+  test('titlebarFgHex keeps the glyphs readable in both modes', async () => {
+    const m = await loadModule()
+    expect(m.titlebarFgHex(true)).toBe('#ffffff')
+    expect(m.titlebarFgHex(false)).toBe('#000000')
   })
 })

@@ -193,6 +193,15 @@ class CompositorControl {
     this.flush()
   }
 
+  // Theme colours for the compositor-drawn titlebar: bar background + glyphs, hex "#rrggbb".
+  setTitlebar(bgHex: string, fgHex: string): void {
+    if (!this.enabled) return
+    const [r, g, b] = hexToRgb255(bgHex)
+    const [fr, fg, fb] = hexToRgb255(fgHex)
+    this.state.set('__titlebar__', `titlebar ${r} ${g} ${b} ${fr} ${fg} ${fb}\n`)
+    this.flush()
+  }
+
   // Push the display calibration to the compositor's per-video shader pass.
   gamma(gamma: number, contrast: number, r: number, g: number, b: number): void {
     if (!this.enabled) return
@@ -250,6 +259,16 @@ export function backdropHex(darkMode: boolean, dark?: string, light?: string): s
 // Push the theme background colour to the compositor backdrop (Linux/compositor only)
 export function setCompositorBackdrop(hex: string): void {
   compositorControl.setBackdrop(hex)
+}
+
+// Titlebar glyph colour: the app's own text colour for the mode (renderer themeColors.textPrimary*)
+export function titlebarFgHex(darkMode: boolean): string {
+  return darkMode ? '#ffffff' : '#000000'
+}
+
+// Push the theme colours for the compositor-drawn titlebar (Linux/compositor only)
+export function setCompositorTitlebar(bgHex: string, fgHex: string): void {
+  compositorControl.setTitlebar(bgHex, fgHex)
 }
 
 // Push the display calibration into every live video pipeline's glshader pass (all platforms).

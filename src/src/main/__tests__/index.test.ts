@@ -94,8 +94,10 @@ vi.mock('@main/services/audio/SystemVolume', () => ({
 vi.mock('../services/video/GstVideo', () => ({
   backdropHex: vi.fn(() => '#101010'),
   setCompositorBackdrop: vi.fn(),
+  setCompositorTitlebar: vi.fn(),
   setMacBackdrop: vi.fn(),
-  setStreamGamma: vi.fn()
+  setStreamGamma: vi.fn(),
+  titlebarFgHex: vi.fn(() => '#ffffff')
 }))
 
 vi.mock('../window/secondaryWindows', () => ({
@@ -396,14 +398,15 @@ describe('main index bootstrap', () => {
     const { BrowserWindow } = await import('electron')
     const fakeWin = {}
     ;(BrowserWindow.getAllWindows as Mock).mockReturnValue([fakeWin])
-    const { backdropHex, setCompositorBackdrop, setMacBackdrop, setStreamGamma } = await import(
-      '../services/video/GstVideo'
-    )
+    const { backdropHex, setCompositorBackdrop, setCompositorTitlebar, setMacBackdrop, setStreamGamma } =
+      await import('../services/video/GstVideo')
 
     await bootIndex()
 
     expect(backdropHex).toHaveBeenCalledTimes(1)
     expect(setCompositorBackdrop).toHaveBeenCalledWith('#101010')
+    // The compositor-drawn titlebar takes the same background, plus the mode's glyph colour.
+    expect(setCompositorTitlebar).toHaveBeenCalledWith('#101010', '#ffffff')
     expect(setMacBackdrop).toHaveBeenCalledWith(fakeWin, '#101010')
     expect(setStreamGamma).toHaveBeenCalledTimes(1)
     ;(BrowserWindow.getAllWindows as Mock).mockImplementation(() => [])
@@ -411,6 +414,7 @@ describe('main index bootstrap', () => {
     const { configEvents } = await import('@main/ipc/utils')
     configEvents.emit('changed', { darkMode: true })
     expect(setCompositorBackdrop).toHaveBeenCalledTimes(2)
+    expect(setCompositorTitlebar).toHaveBeenCalledTimes(2)
     expect(setStreamGamma).toHaveBeenCalledTimes(2)
   })
 })
