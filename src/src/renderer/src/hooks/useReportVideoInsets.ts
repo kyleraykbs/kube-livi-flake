@@ -23,11 +23,17 @@ export function useReportVideoInsets(mainRef: RefObject<HTMLElement | null>): vo
     }
 
     report()
+    // the rail can settle a frame after mount (fonts, nav content): measure again then
+    const raf =
+      typeof requestAnimationFrame !== 'undefined'
+        ? requestAnimationFrame(() => report())
+        : null
     window.addEventListener('resize', report)
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(report) : null
     observer?.observe(el)
 
     return () => {
+      if (raf !== null) cancelAnimationFrame(raf)
       window.removeEventListener('resize', report)
       observer?.disconnect()
     }
