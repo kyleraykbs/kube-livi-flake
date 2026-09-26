@@ -198,6 +198,10 @@ export type Config = {
   // Keep the nav rail visible while a phone is projecting, instead of hiding it
   // so the video is full-bleed (upstream's behaviour, and what `false` gives).
   navWhileStreaming: boolean
+  // Let the nav rail slide away after a few seconds of inactivity wherever it would
+  // otherwise sit over content (telemetry/cluster pages, projecting with the rail
+  // kept). Off: the rail keeps its column and the content stays beside it.
+  navAutoHide: boolean
 
   // Panel mode as "WIDTHxHEIGHT", empty leaves the display at the mode it came up in
   displayMode: string

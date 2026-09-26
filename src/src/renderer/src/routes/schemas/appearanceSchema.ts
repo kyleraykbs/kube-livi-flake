@@ -27,6 +27,13 @@ export const appearanceSchema: SettingsNode<Config> = {
       path: 'navWhileStreaming'
     },
     {
+      type: 'checkbox',
+      label: 'Auto-hide navigation',
+      labelKey: 'settings.navAutoHide',
+      icon: 'navigation',
+      path: 'navAutoHide'
+    },
+    {
       type: 'select',
       label: 'Phone Appearance',
       labelKey: 'settings.phoneAppearance',

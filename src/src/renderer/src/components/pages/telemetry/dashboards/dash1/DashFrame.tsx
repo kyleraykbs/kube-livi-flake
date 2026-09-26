@@ -1,4 +1,5 @@
 import { Box, useTheme } from '@mui/material'
+import { useHostSize, type HostSize } from '@renderer/hooks/useHostSize'
 import { CarType } from '@shared/types'
 import { useLiviStore, useStatusStore } from '@store/store'
 import { type ReactNode, useEffect, useState } from 'react'
@@ -46,11 +47,14 @@ const stageScale = (w: number, h: number): number => {
 
 const stagePush = (w: number, safe: number): number => Math.max(0, (w / safe - BASE_W) / 2)
 
-const stageOffset = (w: number, h: number): { left: number; top: number } => {
-  const safe = stageScale(w, h)
+const stageOffset = (host: HostSize): { left: number; top: number } => {
+  const safe = stageScale(host.w, host.h)
+  // The telemetry/cluster root is fixed to the window, so the stage is positioned in
+  // window coordinates: add the content column's own origin to centre it in the column
+  // (beside the rail) rather than in the window.
   return {
-    left: Math.round((w - BASE_W * safe) / 2),
-    top: Math.round((h - BASE_H * safe) / 2)
+    left: host.left + Math.round((host.w - BASE_W * safe) / 2),
+    top: host.top + Math.round((host.h - BASE_H * safe) / 2)
   }
 }
 
@@ -95,39 +99,15 @@ export function DashFrame({ children, clusterFull }: DashFrameProps) {
   const carType = useLiviStore((s) => s.settings?.carType)
   const fuelMode: 'fuel' | 'battery' = carType === CarType.Electric ? 'battery' : 'fuel'
 
-  const [scale, setScale] = useState(() => stageScale(window.innerWidth, window.innerHeight))
-  const [sidePush, setSidePush] = useState(() =>
-    stagePush(window.innerWidth, stageScale(window.innerWidth, window.innerHeight))
-  )
-  const [offset, setOffset] = useState(() => stageOffset(window.innerWidth, window.innerHeight))
   const [scaleLive, setScaleLive] = useState(false)
 
-  // Single source of truth: the dash fills the fixed full-window telemetry root, so
-  // the window size IS the host size. It is read once at first render and again only
-  // on window resize / fullscreen transitions — never re-measured in between.
-  useEffect(() => {
-    let settle: ReturnType<typeof setTimeout> | null = null
-    // Debounced: attaching the native cluster plane makes macOS relayout the window,
-    // which fires transient 1-2px resize blips. Only a size that holds for a beat is
-    // a real resize/fullscreen change; a blip collapses to a no-op.
-    const onResize = () => {
-      if (settle != null) clearTimeout(settle)
-      settle = setTimeout(() => {
-        settle = null
-        const w = window.innerWidth
-        const h = window.innerHeight
-        const safe = stageScale(w, h)
-        setScale(safe)
-        setSidePush(stagePush(w, safe))
-        setOffset(stageOffset(w, h))
-      }, 150)
-    }
-    window.addEventListener('resize', onResize)
-    return () => {
-      if (settle != null) clearTimeout(settle)
-      window.removeEventListener('resize', onResize)
-    }
-  }, [])
+  // Single source of truth: the dash fills the content column beside the rail, so the
+  // host size is that column — measured once at first render, then again only after a
+  // size settles (the hook debounces transient blips away).
+  const host = useHostSize()
+  const scale = stageScale(host.w, host.h)
+  const sidePush = stagePush(host.w, scale)
+  const offset = stageOffset(host)
 
   useEffect(() => {
     setScaleLive(true)

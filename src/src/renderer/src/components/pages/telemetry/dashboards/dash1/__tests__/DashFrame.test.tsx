@@ -130,6 +130,25 @@ describe('DashFrame', () => {
     }
   })
 
+  test('stages the dash inside the content column the rail leaves', () => {
+    const host = document.createElement('div')
+    host.id = 'content-root'
+    host.getBoundingClientRect = () => ({ left: 62, top: 0, width: 1000, height: 400 }) as DOMRect
+    document.body.appendChild(host)
+    try {
+      const { container } = render(<DashFrame />, { container: host })
+
+      // 400/720 = 0.5555…, centred in the 1000px column: left = 62 + (1000 - 1280*0.5555)/2
+      const stage = Array.from(container.querySelectorAll('div')).find((d) =>
+        window.getComputedStyle(d).transform.includes('scale(0.5555')
+      )
+      expect(stage).toBeTruthy()
+      expect(window.getComputedStyle(stage as Element).left).toBe('206px')
+    } finally {
+      host.remove()
+    }
+  })
+
   test('rescales on a settled window resize, collapses blips and cancels on unmount', () => {
     vi.useFakeTimers()
     try {

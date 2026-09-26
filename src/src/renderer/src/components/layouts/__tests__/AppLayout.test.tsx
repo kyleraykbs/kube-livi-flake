@@ -6,6 +6,7 @@ let mockPathname = '/'
 let mockStreaming = false
 let mockHand = 0
 let mockNavWhileStreaming = false
+let mockNavAutoHide = false
 
 vi.mock('react-router', () => ({
   useLocation: () => ({ pathname: mockPathname })
@@ -23,8 +24,16 @@ vi.mock('../../navigation/useTabsConfig', () => ({
 
 vi.mock('@store/store', () => ({
   useLiviStore: (
-    selector: (s: { settings: { hand: number; navWhileStreaming: boolean } }) => unknown
-  ) => selector({ settings: { hand: mockHand, navWhileStreaming: mockNavWhileStreaming } }),
+    selector: (s: {
+      settings: { hand: number; navWhileStreaming: boolean; navAutoHide: boolean }
+    }) => unknown
+  ) => selector({
+      settings: {
+        hand: mockHand,
+        navWhileStreaming: mockNavWhileStreaming,
+        navAutoHide: mockNavAutoHide
+      }
+    }),
   useStatusStore: (selector: (s: { isStreaming: boolean }) => unknown) =>
     selector({ isStreaming: mockStreaming })
 }))
@@ -55,6 +64,7 @@ describe('AppLayout', () => {
     mockStreaming = false
     mockHand = 0
     mockNavWhileStreaming = false
+    mockNavAutoHide = false
     mockTabCount = 4
     mockNetwork = { type: 'wifi', online: true }
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
@@ -125,6 +135,65 @@ describe('AppLayout', () => {
     expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('1')
   })
 
+  test('keeps the rail in the layout on the cluster page by default', async () => {
+    mockPathname = '/cluster'
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+    const nav = container.querySelector('#nav-root') as HTMLElement
+    expect(nav.style.position).toBe('relative')
+
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
+  })
+
+  test('keeps the rail in the layout on the speedometer page by default', async () => {
+    mockPathname = '/telemetry'
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+    const nav = container.querySelector('#nav-root') as HTMLElement
+    expect(nav.style.position).toBe('relative')
+
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
+  })
+
+  test('floats and auto-hides the kept streaming rail when auto-hide is enabled', async () => {
+    mockStreaming = true
+    mockNavWhileStreaming = true
+    mockNavAutoHide = true
+    const navRef = createRef<HTMLDivElement>()
+    const mainRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <AppLayout navRef={navRef} mainRef={mainRef} receivingVideo={false}>
+        <div>Content</div>
+      </AppLayout>
+    )
+    const nav = container.querySelector('#nav-root') as HTMLElement
+    expect(nav.style.position).toBe('absolute')
+
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('1')
+
+    fireEvent.mouseMove(document)
+    expect(container.querySelector('#content-root')?.getAttribute('data-nav-hidden')).toBe('0')
+  })
+
   test('keeps the rail above the projection overlay', async () => {
     mockStreaming = true
     mockNavWhileStreaming = true
@@ -146,6 +215,7 @@ describe('AppLayout', () => {
 
   test('auto-hides nav after inactivity on maps', async () => {
     mockPathname = '/cluster'
+    mockNavAutoHide = true
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
     const { container } = render(
@@ -175,6 +245,7 @@ describe('AppLayout', () => {
 
   test('shows nav again and re-arms hide timer on mousemove in maps mode', async () => {
     mockPathname = '/cluster'
+    mockNavAutoHide = true
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
 
@@ -201,6 +272,7 @@ describe('AppLayout', () => {
 
   test('shows nav again when focus moves into nav area on cluster page', async () => {
     mockPathname = '/cluster'
+    mockNavAutoHide = true
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
 
@@ -225,6 +297,7 @@ describe('AppLayout', () => {
 
   test('clears auto-hide timer and keeps nav visible when leaving auto-hide pages', async () => {
     mockPathname = '/cluster'
+    mockNavAutoHide = true
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
 
@@ -264,6 +337,7 @@ describe('AppLayout', () => {
 
   test('overlays the nav on auto-hide pages so the content keeps full width', async () => {
     mockPathname = '/cluster'
+    mockNavAutoHide = true
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
     const { container } = render(
@@ -279,6 +353,7 @@ describe('AppLayout', () => {
 
   test('anchors the overlay nav on the right for right-hand drive', async () => {
     mockPathname = '/telemetry'
+    mockNavAutoHide = true
     mockHand = 1
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
@@ -391,6 +466,7 @@ describe('AppLayout', () => {
 
   test('removes wake listeners on unmount for auto-hide pages', async () => {
     mockPathname = '/cluster'
+    mockNavAutoHide = true
     const navRef = createRef<HTMLDivElement>()
     const mainRef = createRef<HTMLDivElement>()
 

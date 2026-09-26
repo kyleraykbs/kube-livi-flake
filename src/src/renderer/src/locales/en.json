@@ -53,6 +53,7 @@
     "keyBindings": "Key Bindings",
     "textMode": "Text mode",
     "navWhileStreaming": "Navigation while projecting",
+    "navAutoHide": "Auto-hide navigation",
     "up": "Up",
     "down": "Down",
     "left": "Left",

@@ -1,4 +1,5 @@
 import { Box } from '@mui/material'
+import { useHostSize } from '@renderer/hooks/useHostSize'
 import type { PropsWithChildren } from 'react'
 import * as React from 'react'
 
@@ -14,25 +15,9 @@ export function DashShell({
   designWidth = 1280,
   designHeight = 720
 }: DashShellProps) {
-  const [size, setSize] = React.useState({ w: window.innerWidth, h: window.innerHeight })
-
-  React.useEffect(() => {
-    let settle: ReturnType<typeof setTimeout> | null = null
-    const onResize = () => {
-      if (settle != null) clearTimeout(settle)
-      settle = setTimeout(() => {
-        settle = null
-        setSize({ w: window.innerWidth, h: window.innerHeight })
-      }, 150)
-    }
-    window.addEventListener('resize', onResize)
-    return () => {
-      if (settle != null) clearTimeout(settle)
-      window.removeEventListener('resize', onResize)
-    }
-  }, [])
-
-  const scale = size.w > 0 && size.h > 0 ? Math.min(size.w / designWidth, size.h / designHeight) : 1
+  // The host area is the content column, not the window: the rail keeps its own width.
+  const { w, h } = useHostSize()
+  const scale = w > 0 && h > 0 ? Math.min(w / designWidth, h / designHeight) : 1
 
   return (
     <Box

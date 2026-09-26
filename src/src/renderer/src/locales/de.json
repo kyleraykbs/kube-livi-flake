@@ -53,6 +53,7 @@
     "keyBindings": "Tastenbelegung",
     "textMode": "Textmodus",
     "navWhileStreaming": "Navigation während der Projektion",
+    "navAutoHide": "Navigation automatisch ausblenden",
     "up": "Oben",
     "down": "Unten",
     "left": "Links",

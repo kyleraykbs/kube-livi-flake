@@ -22,6 +22,27 @@ describe('DashShell', () => {
     expect(container.firstChild).toHaveStyle('--dash-scale: 0.8')
   })
 
+  test('scales to the content column the rail leaves, not the window', async () => {
+    const host = document.createElement('div')
+    host.id = 'content-root'
+    host.getBoundingClientRect = () =>
+      ({ left: 62, top: 0, width: 1218, height: 720 }) as DOMRect
+    document.body.appendChild(host)
+    try {
+      const { container } = render(
+        <DashShell>
+          <div>Telemetry content</div>
+        </DashShell>,
+        { container: host }
+      )
+
+      // 1218/1280, not 1024/1280 from the window
+      expect(container.firstChild).toHaveStyle('--dash-scale: 0.9515625')
+    } finally {
+      host.remove()
+    }
+  })
+
   test('falls back to scale 1 while the window reports no size', async () => {
     setWindowSize(0, 0)
     const { container } = render(

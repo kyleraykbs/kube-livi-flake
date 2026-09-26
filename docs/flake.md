@@ -94,6 +94,11 @@ Notable keys:
   scales the phone's display into the space beside it; `false` is upstream's
   behaviour, where the rail is dropped on the projection page and the phone
   keeps the full window. *Settings → Appearance*
+- `navAutoHide` — let the rail slide away after a few seconds of inactivity
+  wherever it would otherwise sit over content (speedometer/cluster pages, and
+  projecting with the rail kept), floating out of the layout so the content gets
+  the full width while it is gone. Default `false`: the rail stays put.
+  *Settings → Appearance*
 
 `bindings` keys: `up`, `down`, `left`, `right`, `selectUp`, `selectDown`,
 `back`, `knobLeft`, `knobRight`, `knobUp`, `knobDown`, `home`, `cycleSession`,

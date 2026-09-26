@@ -60,6 +60,7 @@ export const DEFAULT_CONFIG: Config = {
   carPlayMfiPowerGpio: -1,
   appearanceMode: 'auto',
   navWhileStreaming: true,
+  navAutoHide: false,
   displayMode: '',
   displayGamma: 1.0,
   displayContrast: 1.0,

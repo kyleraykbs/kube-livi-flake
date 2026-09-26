@@ -37,15 +37,17 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
 
   const inAutoHideNavPage = pathname === ROUTES.CLUSTER || pathname === ROUTES.TELEMETRY
 
-  // While a phone streams with the rail kept (navWhileStreaming), the rail keeps its
-  // layout column: the compositor scales the video plane into the remaining width
-  // (useReportVideoInsets reports the strip), so the phone's display and its touch
-  // surface both stop beside the rail instead of running underneath it.
-  // A rail that is not shown while streaming (navWhileStreaming off) and the
-  // auto-hiding cluster/telemetry rails float over the content instead, which keeps
-  // the content column at the full window width there.
+  // The rail keeps its own layout column and everything else — including the compositor's
+  // video plane, which is scaled to the reported strip — sits beside it, so nothing runs
+  // underneath the rail. Auto-hide is opt-in (`navAutoHide`, off by default): when it is
+  // on, the rail slides away after a few seconds of inactivity wherever it would otherwise
+  // sit over content, and floats out of the layout while it is gone, which hands the
+  // content the full width.
+  const streamingRail = isStreaming && pathname === ROUTES.HOME && Boolean(settings?.navWhileStreaming)
+  const autoHideNav = Boolean(settings?.navAutoHide) && (inAutoHideNavPage || streamingRail)
+  // A rail that is not shown while streaming at all (navWhileStreaming off) also floats,
+  // which is upstream's full-bleed projection.
   const hideNavHome = isStreaming && pathname === ROUTES.HOME && !settings?.navWhileStreaming
-  const autoHideNav = inAutoHideNavPage
   const navOverlay = autoHideNav || hideNavHome
 
   const { hidden: autoHiddenNav } = useAutoHideNav(autoHideNav, navRef.current)
