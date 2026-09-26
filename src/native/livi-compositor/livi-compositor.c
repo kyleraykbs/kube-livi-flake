@@ -994,6 +994,10 @@ static void apply_video_layout(struct tinywl_toplevel *video) {
 		video->crop_l, video->crop_t);
 	wlr_xdg_toplevel_set_size(video->xdg_toplevel, g.w, g.h);
 	wlr_scene_node_set_position(&video->scene_tree->node, g.x, g.y);
+	if (getenv("LIVI_DEBUG_LAYOUT") != NULL) {
+		wlr_log(WLR_INFO, "livi: video '%s' -> %dx%d+%d+%d (box %dx%d, insets %d/%d)",
+			video->tag, g.w, g.h, g.x, g.y, aw, oh, il, ir);
+	}
 }
 
 static const char CAL_VERT_SRC[] =
