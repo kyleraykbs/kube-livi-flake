@@ -183,7 +183,7 @@ declare global {
     scrcpy: {
       type(text: string): Promise<void>
       key(keycode: number): Promise<void>
-      osk(open: boolean): Promise<void>
+      insets(left: number, right: number, bottom: number): Promise<void>
     }
 
     app: {

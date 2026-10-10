@@ -2,6 +2,7 @@ import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import KeyboardReturnOutlinedIcon from '@mui/icons-material/KeyboardReturnOutlined'
 import { Box, Button, IconButton, Paper } from '@mui/material'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // Android key codes for the non-printable keys (adb `input keyevent`).
@@ -37,6 +38,16 @@ export type ScrcpyKeyboardProps = {
 export function ScrcpyKeyboard({ open, onClose }: ScrcpyKeyboardProps) {
   const { t } = useTranslation()
 
+  // The mirror is laid out around this panel's strip: let the inset reporter measure
+  // it as soon as it appears and again when it goes away.
+  useEffect(() => {
+    if (!open) return
+    window.dispatchEvent(new Event('resize'))
+    return () => {
+      window.dispatchEvent(new Event('resize'))
+    }
+  }, [open])
+
   if (!open) return null
 
   const typeChar = (text: string) => {
@@ -66,6 +77,7 @@ export function ScrcpyKeyboard({ open, onClose }: ScrcpyKeyboardProps) {
       }}
     >
       <Paper
+        id="scrcpy-keyboard"
         elevation={12}
         role="group"
         aria-label={t('scrcpy.keyboard')}

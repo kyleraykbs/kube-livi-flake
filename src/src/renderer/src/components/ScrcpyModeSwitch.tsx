@@ -26,39 +26,17 @@ export function ScrcpyModeSwitch() {
   // the compositor insets around it).
   const railOffset = { right: '16px' }
 
-  const setOsk = useCallback((open: boolean) => {
-    const scrcpy = window.scrcpy
-    if (!scrcpy) return
-    void scrcpy.osk(open).catch(() => {})
-  }, [])
+  const closeKeyboard = useCallback(() => setKeyboardOpen(false), [])
 
-  const closeKeyboard = useCallback(() => {
-    setKeyboardOpen(false)
-    setOsk(false)
-  }, [setOsk])
+  const toggleKeyboard = () => setKeyboardOpen((open) => !open)
 
-  const toggleKeyboard = () => {
-    if (keyboardOpen) {
-      closeKeyboard()
-      return
-    }
-    setKeyboardOpen(true)
-    setOsk(true)
-  }
-
-  // Turning the mode off drops the keyboard and hands the phone window back to the compositor.
+  // Turning the mode off drops the on-screen keyboard with it.
   const prevModeRef = useRef(scrcpyMode)
   useEffect(() => {
     if (prevModeRef.current === scrcpyMode) return
     prevModeRef.current = scrcpyMode
-    if (!scrcpyMode) closeKeyboard()
-  }, [scrcpyMode, closeKeyboard])
-
-  // The compositor only keeps the phone window below the UI while we ask it to, so the
-  // order must be dropped when this control unmounts.
-  useEffect(() => {
-    return () => setOsk(false)
-  }, [setOsk])
+    if (!scrcpyMode) setKeyboardOpen(false)
+  }, [scrcpyMode])
 
   return (
     <>

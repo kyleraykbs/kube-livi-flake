@@ -20,23 +20,22 @@ export function useReportVideoInsets(
       let left = Math.max(0, Math.round(rect.left))
       let right = Math.max(0, Math.round(window.innerWidth - rect.right))
 
-      // In scrcpy mode there is no full-bleed video plane, but the fixed mode switch
-      // sits at the top right while the rail is on its own side: measure BOTH so the
-      // mirrored phone window stays clear of each (the cluster floats wider than the
-      // rail, so a rail-width inset alone left its edge covered).
+      // In scrcpy mode the mirror is a compositor-managed window: report the strips
+      // it must leave free (rail, mode switch, on-screen keyboard) instead of a video
+      // plane's, which does not exist here.
       if (scrcpyMode) {
         const navRect = document.getElementById('nav-root')?.getBoundingClientRect()
         const clusterRect = document.getElementById('scrcpy-cluster')?.getBoundingClientRect()
+        const keyboardRect = document.getElementById('scrcpy-keyboard')?.getBoundingClientRect()
         const railWidth = navRect ? Math.max(0, Math.round(navRect.width)) : 0
-        const CLUSTER_MARGIN = 8
+        const MARGIN = 8
         const navOnLeft = navRect ? navRect.left <= window.innerWidth - navRect.right : false
         const clusterOnLeft = clusterRect
           ? clusterRect.left <= window.innerWidth - clusterRect.right
           : false
         const clusterStrip = clusterRect
           ? Math.round(
-              (clusterOnLeft ? clusterRect.right : window.innerWidth - clusterRect.left) +
-                CLUSTER_MARGIN
+              (clusterOnLeft ? clusterRect.right : window.innerWidth - clusterRect.left) + MARGIN
             )
           : 0
         left =
@@ -44,9 +43,16 @@ export function useReportVideoInsets(
         right =
           (navRect && !navOnLeft ? railWidth : 0) +
           (clusterRect && !clusterOnLeft ? clusterStrip : 0)
-        if (left === 0 && right === 0) {
-          return
+        const bottom =
+          keyboardRect && keyboardRect.height > 0
+            ? Math.round(window.innerHeight - keyboardRect.top + MARGIN)
+            : 0
+        const scrcpyKey = `${left}:${right}:${bottom}`
+        if (scrcpyKey !== last) {
+          last = scrcpyKey
+          window.scrcpy?.insets?.(left, right, bottom)
         }
+        return
       }
 
       const key = `${left}:${right}`

@@ -13,10 +13,15 @@ export function registerScrcpyIpc(supervisor: ScrcpySupervisor): void {
     await supervisor.sendKey(keycode)
   })
 
-  // The mirror is classified into the compositor's phone layer; while the on-screen
-  // keyboard is up the UI must sit above it or the keyboard would be painted under
-  // the mirrored phone.
-  registerIpcHandle('scrcpy-osk', async (_evt, open: unknown) => {
-    sendCompositorLine(`phoneorder ${open === true ? 'below' : 'above'}\n`)
+  // The compositor lays the mirror out around the UI's reserved strips (rail, mode
+  // switch, on-screen keyboard), so the renderer reports them whenever they change.
+  registerIpcHandle('scrcpy-insets', async (_evt, insets: unknown) => {
+    // boundary read of our own renderer's payload; every field is validated
+    const payload = (insets ?? {}) as { left?: unknown; right?: unknown; bottom?: unknown }
+    const px = (v: unknown): number =>
+      typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : 0
+    sendCompositorLine(
+      `phoneinsets ${px(payload.left)} ${px(payload.right)} ${px(payload.bottom)}\n`
+    )
   })
 }

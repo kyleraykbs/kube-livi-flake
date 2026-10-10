@@ -234,7 +234,8 @@ contextBridge.exposeInMainWorld('projection', api)
 const scrcpyApi = {
   type: (text: string): Promise<void> => ipcRenderer.invoke('scrcpy-type', text),
   key: (keycode: number): Promise<void> => ipcRenderer.invoke('scrcpy-key', keycode),
-  osk: (open: boolean): Promise<void> => ipcRenderer.invoke('scrcpy-osk', open)
+  insets: (left: number, right: number, bottom: number): Promise<void> =>
+    ipcRenderer.invoke('scrcpy-insets', { left, right, bottom })
 }
 
 contextBridge.exposeInMainWorld('scrcpy', scrcpyApi)

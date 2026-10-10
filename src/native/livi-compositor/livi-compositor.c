@@ -84,8 +84,8 @@ struct livi_video_cfg {
 	char screen[32];
 	bool has_crop;
 	double crop_l, crop_t, vis_w, vis_h, tier_w, tier_h;
-	// sidebar strip reserved by the host's UI on the left/right of the plane
-	double inset_l, inset_r;
+	// strip reserved by the host's UI (sidebar left/right, keyboard bottom)
+	double inset_l, inset_r, inset_b;
 	bool has_visible;
 	bool visible;
 };
@@ -101,13 +101,12 @@ struct tinywl_server {
 	// fixed z-order layers (bottom -> top): backdrop, video planes, UI, decoration, overlay
 	struct wlr_scene_tree *layer_bg;
 	struct wlr_scene_tree *layer_video;
-	// phone-mirror window (scrcpy): above the video planes, and raisable
-	// above the UI so touches reach it, or below it while the OSK is up
-	struct wlr_scene_tree *layer_phone;
 	struct wlr_scene_tree *layer_ui;
 	struct wlr_scene_tree *layer_deco;
 	struct wlr_scene_tree *layer_overlay;
-	bool phone_above;                // phone window above the UI layer
+	// strip the phone-mirror window (scrcpy) must leave free; kept here so a
+	// window mapping after the host reported them still picks them up
+	double phone_inset_l, phone_inset_r, phone_inset_b;
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_toplevel;
@@ -201,8 +200,8 @@ struct tinywl_toplevel {
 	char tag[64];
 	bool has_crop;
 	double crop_l, crop_t, vis_w, vis_h, tier_w, tier_h;
-	// sidebar strip reserved by the host's UI on the left/right of the plane
-	double inset_l, inset_r;
+	// strip reserved by the host's UI (sidebar left/right, keyboard bottom)
+	double inset_l, inset_r, inset_b;
 	struct wl_list video_link;   // in server->videos
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -1028,10 +1027,16 @@ static void apply_phone_layout(struct tinywl_toplevel *phone) {
 	}
 	int il = phone->inset_l > 0 ? (int)lround(phone->inset_l) : 0;
 	int ir = phone->inset_r > 0 ? (int)lround(phone->inset_r) : 0;
+	int ib = phone->inset_b > 0 ? (int)lround(phone->inset_b) : 0;
 	int aw = ow - il - ir;
+	int ah = oh - ib;
 	if (aw < 1) {
 		aw = 1;
 		il = 0;
+	}
+	if (ah < 1) {
+		ah = 1;
+		ib = 0;
 	}
 	/* content = what the client is actually showing (follows rotation) */
 	int cw = phone->xdg_toplevel->base->surface->current.width;
@@ -1043,7 +1048,7 @@ static void apply_phone_layout(struct tinywl_toplevel *phone) {
 	if (cw <= 0 || ch <= 0) {
 		return;
 	}
-	double fit = fmin((double)aw / cw, (double)oh / ch);
+	double fit = fmin((double)aw / cw, (double)ah / ch);
 	int w = (int)lround(cw * fit);
 	int h = (int)lround(ch * fit);
 	if (w < 1) {
@@ -1068,11 +1073,11 @@ static void apply_phone_layout(struct tinywl_toplevel *phone) {
 		}
 	}
 	int x = s->x + il + (aw - w) / 2;
-	int y = top + (oh - h) / 2;
+	int y = top + (ah - h) / 2;
 	wlr_scene_node_set_position(&phone->scene_tree->node, x, y);
 	if (getenv("LIVI_DEBUG_LAYOUT") != NULL) {
-		wlr_log(WLR_INFO, "livi: phone %dx%d -> %dx%d+%d+%d (box %dx%d, insets %d/%d)",
-			cw, ch, w, h, x, y, aw, oh, il, ir);
+		wlr_log(WLR_INFO, "livi: phone %dx%d -> %dx%d+%d+%d (box %dx%d, insets %d/%d/%d)",
+			cw, ch, w, h, x, y, aw, ah, il, ir, ib);
 	}
 }
 
@@ -1823,13 +1828,10 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			toplevel->is_phone = true;
 			toplevel->is_video = false;
 			s = &server->screens[0];
-			/* the phone mirror shares the main video plane's reserved strip, so it
-			 * must pick up insets reported before this window existed */
-			struct livi_video_cfg *mcfg = cfg_for_tag(server, "main", false);
-			if (mcfg != NULL) {
-				toplevel->inset_l = mcfg->inset_l;
-				toplevel->inset_r = mcfg->inset_r;
-			}
+			/* insets the host reported before this window existed */
+			toplevel->inset_l = server->phone_inset_l;
+			toplevel->inset_r = server->phone_inset_r;
+			toplevel->inset_b = server->phone_inset_b;
 		} else if (is_ui) {
 			if (title && strncmp(title, "livi:", 5) == 0) {
 				s = screen_by_role(server, title + 5);
@@ -1880,8 +1882,7 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		toplevel->screen = s;
 		struct wlr_scene_tree *layer = toplevel->is_dialog ? server->layer_overlay
 			: toplevel->is_video ? server->layer_video
-			: toplevel->is_phone ? (server->phone_above ? server->layer_overlay
-				: server->layer_phone)
+			: toplevel->is_phone ? server->layer_overlay
 			: server->layer_ui;
 		wlr_scene_node_reparent(&toplevel->scene_tree->node, layer);
 		wlr_log(WLR_INFO, "livi: app_id='%s' title='%s' tag='%s' -> %s on screen '%s'",
@@ -2121,7 +2122,7 @@ static void spawn_startup(struct tinywl_server *server) {
 
 // Control socket (LIVI_COMPOSITOR_CTRL): line protocol from the host. Commands:
 //   screen <role> <0|1> | claim <tag> | videocfg <tag> <screen> <crop...>
-//   videoshow <tag> <0|1> | phoneorder <above|below> | backdrop <r> <g> <b> | restart
+//   videoshow <tag> <0|1> | phoneinsets <l> <r> <b> | backdrop <r> <g> <b> | restart
 struct livi_ctrl_client {
 	struct tinywl_server *server;
 	struct wl_event_source *source;
@@ -2154,7 +2155,7 @@ static int restart_timeout(void *data) {
 }
 
 static void ctrl_handle_line(struct tinywl_server *server, const char *line) {
-	char tag[64], srole[32], sbuf[32];
+	char tag[64], srole[32];
 	double cl, ct, vw, vh, tw, th;
 	int onoff, swidth, sheight;
 
@@ -2247,27 +2248,22 @@ static void ctrl_handle_line(struct tinywl_server *server, const char *line) {
 				v->inset_r = ct;
 				apply_video_layout(v);
 			}
-			/* the phone-mirror window mirrors the same strip */
-			struct tinywl_toplevel *t;
-			wl_list_for_each(t, &server->toplevels, link) {
-				if (t->is_phone) {
-					t->inset_l = cl;
-					t->inset_r = ct;
-					apply_video_layout(t);
-				}
-			}
 		}
 		return;
 	}
-	if (sscanf(line, "phoneorder %31s", sbuf) == 1) {
-		/* scrcpy mirror: "above" (default) lets touches reach it; "below" puts
-		 * the UI on top so the on-screen keyboard is visible and clickable */
-		server->phone_above = strcmp(sbuf, "below") != 0;
+	if (sscanf(line, "phoneinsets %lf %lf %lf", &cl, &ct, &vw) == 3) {
+		/* scrcpy mirror strip: sidebar left/right plus the on-screen keyboard at
+		 * the bottom, so the mirror never runs under either */
+		server->phone_inset_l = cl;
+		server->phone_inset_r = ct;
+		server->phone_inset_b = vw;
 		struct tinywl_toplevel *t;
 		wl_list_for_each(t, &server->toplevels, link) {
 			if (t->is_phone) {
-				wlr_scene_node_reparent(&t->scene_tree->node,
-					server->phone_above ? server->layer_overlay : server->layer_phone);
+				t->inset_l = cl;
+				t->inset_r = ct;
+				t->inset_b = vw;
+				apply_phone_layout(t);
 			}
 		}
 		return;
@@ -2531,11 +2527,9 @@ int main(int argc, char *argv[]) {
 	// created in z-order: backdrop (bottom), video planes, UI, decoration, overlay (top)
 	server.layer_bg = wlr_scene_tree_create(&server.scene->tree);
 	server.layer_video = wlr_scene_tree_create(&server.scene->tree);
-	server.layer_phone = wlr_scene_tree_create(&server.scene->tree);
 	server.layer_ui = wlr_scene_tree_create(&server.scene->tree);
 	server.layer_deco = wlr_scene_tree_create(&server.scene->tree);
 	server.layer_overlay = wlr_scene_tree_create(&server.scene->tree);
-	server.phone_above = true;
 
 	wl_list_init(&server.toplevels);
 	wl_list_init(&server.videos);
