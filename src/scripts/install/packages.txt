@@ -32,6 +32,8 @@ core|libva2|file:/usr/lib/*/libva.so.2|Host VA-API runtime, the bundled H.264 so
 core|libva-drm2|file:/usr/lib/*/libva-drm.so.2|Host VA-API DRM runtime for the bundled decoder
 core|libva-x11-2|file:/usr/lib/*/libva-x11.so.2|Host VA-API X11 runtime for the bundled decoder
 core|libssh-4|file:/usr/lib/*/libssh.so.4|Host libssh, the bundled FFmpeg protocol layer links it
+core|scrcpy|cmd:scrcpy|Mirroring an adb-connected phone in scrcpy mode
+core|adb|cmd:adb|Typing into the phone from the scrcpy-mode on-screen keyboard
 lite|cage|cmd:cage|Kiosk compositor
 lite|seatd|cmd:seatd|Seat and session management
 lite|wlr-randr|cmd:wlr-randr|Display configuration

@@ -41,6 +41,7 @@ export const DEFAULT_CONFIG: Config = {
   samplingFrequency: 1,
   autoConn: true,
   textMode: true,
+  scrcpyMode: false,
   UseBTPhone: false,
   disableAudioOutput: false,
   wifiType: '5ghz',

@@ -174,8 +174,11 @@ const api = {
       ipcRenderer.send('projection-multi-touch', points),
     sendCommand: (key: string): void => ipcRenderer.send('projection-command', key),
     // sidebar strip this window's UI reserves (px per side) → compositor video insets
-    setVideoInsets: (insets: { role: 'main' | 'dash' | 'aux'; left: number; right: number }): void =>
-      ipcRenderer.send('projection-video-insets', insets),
+    setVideoInsets: (insets: {
+      role: 'main' | 'dash' | 'aux'
+      left: number
+      right: number
+    }): void => ipcRenderer.send('projection-video-insets', insets),
     onEvent: (callback: ApiCallback): (() => void) => {
       projectionEventHandlers.push(callback)
       projectionEventQueue.forEach(([evt, ...args]) => callback(evt, ...args))
@@ -227,6 +230,14 @@ const api = {
 }
 
 contextBridge.exposeInMainWorld('projection', api)
+
+const scrcpyApi = {
+  type: (text: string): Promise<void> => ipcRenderer.invoke('scrcpy-type', text),
+  key: (keycode: number): Promise<void> => ipcRenderer.invoke('scrcpy-key', keycode),
+  osk: (open: boolean): Promise<void> => ipcRenderer.invoke('scrcpy-osk', open)
+}
+
+contextBridge.exposeInMainWorld('scrcpy', scrcpyApi)
 
 type UpdateEvent = { phase: string; message?: string }
 type UpdateProgress = { phase?: string; percent?: number; received?: number; total?: number }

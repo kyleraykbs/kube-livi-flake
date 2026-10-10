@@ -9,6 +9,7 @@ installMainProcessErrorHandlers()
 
 import { setDebugLogging } from '@main/constants'
 import { registerIpc } from '@main/ipc'
+import { registerScrcpyIpc } from '@main/ipc/scrcpy'
 import { configEvents, saveSettings } from '@main/ipc/utils'
 import { registerAppProtocol } from '@main/protocol/appProtocol'
 import {
@@ -21,6 +22,7 @@ import { checkMissingPackages } from '@main/services/packageCheck'
 import { checkAndInstallHelperSudoers } from '@main/services/projection/driver/helper/helperSudoers'
 import { ProjectionService } from '@main/services/projection/services/ProjectionService'
 import { TelemetrySocket } from '@main/services/Socket'
+import { ScrcpySupervisor } from '@main/services/scrcpy/ScrcpySupervisor'
 import { setupTelemetry } from '@main/services/telemetry/setupTelemetry'
 import { TelemetryStore } from '@main/services/telemetry/TelemetryStore'
 import { runtimeStateProps } from '@main/types'
@@ -64,6 +66,7 @@ app.whenReady().then(async () => {
   if (!bootAllowed) return
   const projectionService = new ProjectionService()
   const usbService = new USBService(projectionService)
+  const scrcpySupervisor = new ScrcpySupervisor()
   const telemetryStore = new TelemetryStore()
   const telemetrySocket = new TelemetrySocket(telemetryStore, 4000)
   const runtimeState: runtimeStateProps = {
@@ -86,6 +89,7 @@ app.whenReady().then(async () => {
   setupAppIdentity()
   registerAppProtocol()
   registerIpc(runtimeState, services)
+  registerScrcpyIpc(scrcpySupervisor)
   createMainWindow(runtimeState, services)
   setupSecondaryWindows(runtimeState)
 
@@ -171,6 +175,14 @@ app.whenReady().then(async () => {
   }
 
   projectionService.applyConfigPatch(runtimeState.config)
+
+  // scrcpy mode: start/stop the mirror with the flag (the projection drivers
+  // themselves are gated inside ProjectionService).
+  scrcpySupervisor.setEnabled(runtimeState.config.scrcpyMode === true)
+  configEvents.on('changed', (next: Config) => {
+    scrcpySupervisor.setEnabled(next.scrcpyMode === true)
+  })
+  app.once('before-quit', () => scrcpySupervisor.dispose())
 
   await projectionService.autoStartIfNeeded()
 })

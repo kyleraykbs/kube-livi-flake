@@ -179,6 +179,13 @@ declare global {
       }
     }
 
+    // scrcpy mode: mirror the phone over adb without touching its USB interfaces
+    scrcpy: {
+      type(text: string): Promise<void>
+      key(keycode: number): Promise<void>
+      osk(open: boolean): Promise<void>
+    }
+
     app: {
       platform: NodeJS.Platform
       compositor: boolean

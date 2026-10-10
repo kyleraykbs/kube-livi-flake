@@ -449,6 +449,15 @@ export class ProjectionService {
     const prev = this.config
     this.config = { ...this.config, ...next }
 
+    // scrcpy mode: hand the phone back. Leave any live session and keep the
+    // wireless helper down (the scrcpy supervisor is driven by the bootstrap).
+    if (this.config.scrcpyMode !== prev.scrcpyMode) {
+      if (this.config.scrcpyMode) {
+        this.stop().catch(() => {})
+      }
+      this.syncHelperSupervisor()
+    }
+
     const prevClusterActive = isClusterDisplayed(prev)
     const nextClusterActive = isClusterDisplayed(this.config)
     const clusterToggled = prevClusterActive !== nextClusterActive
@@ -495,7 +504,7 @@ export class ProjectionService {
     // BT profiles) is toggled live over the control socket; the helper process never
     // restarts for a wireless config change, so wired sessions survive the toggle.
     const wantCp = linux
-    const want = wantAaWireless || wantCp
+    const want = !this.config.scrcpyMode && (wantAaWireless || wantCp)
     const enableKey = want ? 'h' : ''
     // The spawn env only carries the initial AA/CP wireless state; later changes go
     // over the control socket.
@@ -1331,8 +1340,11 @@ export class ProjectionService {
   public markDongleConnected(connected: boolean): void {
     this.arbiter.markDongleConnected(connected)
     this.statusFile.setUsbState(this.arbiter.isPhoneConnected(), connected)
-    if (connected) void this.dongleDriver.bringUp(this.config, this.pendingStartupConnectTarget)
-    else void this.dongleDriver.close()
+    if (connected) {
+      if (!this.config.scrcpyMode) {
+        void this.dongleDriver.bringUp(this.config, this.pendingStartupConnectTarget)
+      }
+    } else void this.dongleDriver.close()
   }
 
   public markPhoneConnected(connected: boolean, device?: Device): void {
@@ -1835,6 +1847,7 @@ export class ProjectionService {
   }
 
   private async maybeBringUpWiredBeside(): Promise<void> {
+    if (this.config.scrcpyMode) return
     const device = this.arbiter.getPhoneDevice()
     if (!device) return
     if (device.vendorId === APPLE_VENDOR_ID) return
@@ -1864,6 +1877,9 @@ export class ProjectionService {
 
   public async autoStartIfNeeded() {
     if (this.shuttingDown) return
+    // scrcpy mode owns the phone: projection drivers stay down so the phone's
+    // USB interfaces (tethering included) are never re-enumerated.
+    if (this.config.scrcpyMode) return
     if (this.stopPromise) {
       try {
         await this.stopPromise
@@ -1887,6 +1903,7 @@ export class ProjectionService {
 
   private async start() {
     if (this.started) return
+    if (this.config.scrcpyMode) return
     if (this.startPromise) return this.startPromise
 
     this.startPromise = (async () => {

@@ -5,6 +5,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState }
 import { HashRouter as Router, useLocation, useNavigate, useRoutes } from 'react-router'
 import { AppLayout } from './components/layouts/AppLayout'
 import { Cluster, Projection } from './components/pages'
+import { ScrcpyModeSwitch } from './components/ScrcpyModeSwitch'
 import { SessionSwitchOverlay } from './components/SessionSwitchOverlay'
 import { ROUTES } from './constants'
 import { AppContext } from './context'
@@ -322,6 +323,8 @@ function AppInner() {
       )}
       <Box sx={{ width: '100%', height: '100%' }}>{element}</Box>
       <SessionSwitchOverlay />
+      {/* scrcpy mode toggle + on-screen keyboard; pinned over the nav rail strip */}
+      <ScrcpyModeSwitch />
     </AppLayout>
   )
 }

@@ -3,6 +3,15 @@
     "dongle": "Адаптер",
     "phone": "Телефон"
   },
+  "scrcpy": {
+    "title": "scrcpy",
+    "mode": "Режим scrcpy",
+    "keyboard": "Екранна клавіатура",
+    "space": "Пробіл",
+    "backspace": "Видалити",
+    "enter": "Введення",
+    "close": "Закрити клавіатуру"
+  },
   "settings": {
     "settingsTitle": "Налаштування",
     "devices": "Пристрої",

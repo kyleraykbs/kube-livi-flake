@@ -3,6 +3,15 @@
     "dongle": "Dongle",
     "phone": "Téléphone"
   },
+  "scrcpy": {
+    "title": "scrcpy",
+    "mode": "Mode scrcpy",
+    "keyboard": "Clavier à l'écran",
+    "space": "Espace",
+    "backspace": "Retour arrière",
+    "enter": "Entrée",
+    "close": "Fermer le clavier"
+  },
   "settings": {
     "settingsTitle": "Réglages",
     "devices": "Appareils",

@@ -189,6 +189,10 @@ export type Config = {
   // Physical keyboard types into the phone while projecting (bound keys too)
   textMode: boolean
 
+  // scrcpy mode: don't open the phone-projection USB drivers (keeps USB
+  // tethering alive) and mirror the phone with scrcpy instead
+  scrcpyMode: boolean
+
   // LIVI UI
   startPage: 'home' | 'media' | 'maps' | 'telemetry' | 'camera' | 'settings'
   language: string

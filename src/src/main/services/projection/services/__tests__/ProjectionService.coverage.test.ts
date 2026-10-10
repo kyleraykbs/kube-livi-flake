@@ -3522,3 +3522,66 @@ describe('ProjectionService last-mile coverage', () => {
     expect(svc.audio.resetForSessionStart).not.toHaveBeenCalled()
   })
 })
+
+describe('ProjectionService scrcpy mode gating', () => {
+  test('autoStartIfNeeded does not consult the arbiter while scrcpy mode owns the phone', async () => {
+    const svc = makeSvc()
+    // fresh object: svc.config aliases the shared DEFAULT_CONFIG, never mutate it
+    svc.config = { ...svc.config, scrcpyMode: true }
+    svc.arbiter.decideNextStart = vi.fn(() => ({ kind: 'none' }))
+
+    await svc.autoStartIfNeeded()
+
+    expect(svc.arbiter.decideNextStart).not.toHaveBeenCalled()
+    expect(svc.started).toBe(false)
+  })
+
+  test('autoStartIfNeeded consults the arbiter with scrcpy mode off (control)', async () => {
+    const svc = makeSvc()
+    svc.arbiter.decideNextStart = vi.fn(() => ({ kind: 'none' }))
+
+    await svc.autoStartIfNeeded()
+
+    expect(svc.arbiter.decideNextStart).toHaveBeenCalled()
+  })
+
+  test('start never reaches the transport picker while scrcpy mode owns the phone', async () => {
+    const svc = makeSvc()
+    svc.config = { ...svc.config, scrcpyMode: true }
+    svc.arbiter.pickPreferred = vi.fn(() => ({ transport: 'aa', mode: 'wired' }))
+
+    await svc.start()
+
+    expect(svc.arbiter.pickPreferred).not.toHaveBeenCalled()
+    expect(svc.started).toBe(false)
+  })
+
+  test('start reaches the transport picker with scrcpy mode off (control)', async () => {
+    const svc = makeSvc()
+    svc.arbiter.pickPreferred = vi.fn(() => ({ transport: 'dongle' }))
+
+    await svc.start()
+
+    expect(svc.arbiter.pickPreferred).toHaveBeenCalled()
+  })
+
+  test('enabling scrcpy mode leaves a live projection session and the wireless helper', () => {
+    const svc = makeSvc()
+    svc.stop = vi.fn(async () => undefined)
+    svc.syncHelperSupervisor = vi.fn()
+
+    svc.onConfigChanged({ ...svc.config, scrcpyMode: true })
+
+    expect(svc.stop).toHaveBeenCalled()
+    expect(svc.syncHelperSupervisor).toHaveBeenCalled()
+  })
+
+  test('syncHelperSupervisor keeps the helper down in scrcpy mode', () => {
+    const svc = makeSvc()
+    svc.config = { ...svc.config, scrcpyMode: true }
+
+    svc.syncHelperSupervisor()
+
+    expect(svc.helperSupervisor).toBeNull()
+  })
+})

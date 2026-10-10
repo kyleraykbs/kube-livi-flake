@@ -101,9 +101,13 @@ struct tinywl_server {
 	// fixed z-order layers (bottom -> top): backdrop, video planes, UI, decoration, overlay
 	struct wlr_scene_tree *layer_bg;
 	struct wlr_scene_tree *layer_video;
+	// phone-mirror window (scrcpy): above the video planes, and raisable
+	// above the UI so touches reach it, or below it while the OSK is up
+	struct wlr_scene_tree *layer_phone;
 	struct wlr_scene_tree *layer_ui;
 	struct wlr_scene_tree *layer_deco;
 	struct wlr_scene_tree *layer_overlay;
+	bool phone_above;                // phone window above the UI layer
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_toplevel;
@@ -151,7 +155,9 @@ struct tinywl_server {
 	struct wl_list videos;
 	struct livi_video_cfg video_cfgs[LIVI_MAX_VIDEO_CFGS];
 	int ctrl_fd;
-	int ctrl_client_fd;   // current control-socket client, for the bound-tag ack channel
+	// control-socket clients (the host video client + the app's scrcpy client);
+	// acks are broadcast, each client keeps its own read buffer
+	struct wl_list ctrl_clients;
 
 	// Display calibration state for the full-output shader pass. cal_active gates it.
 	bool cal_active;
@@ -190,6 +196,7 @@ struct tinywl_toplevel {
 	struct wlr_xdg_toplevel_decoration_v1 *decoration;  // forced server-side on initial commit
 	bool is_video;
 	bool is_dialog;   // modal dialog: lives in layer_overlay, kept centered
+	bool is_phone;    // phone-mirror (scrcpy): placed like a plane, interactive
 	// video plane: tag (claim) + crop region, placed by apply_video_layout
 	char tag[64];
 	bool has_crop;
@@ -1005,6 +1012,16 @@ static void apply_video_layout(struct tinywl_toplevel *video) {
 	}
 }
 
+// Re-fit phone-mirror windows: they track the main video plane's box and insets.
+static void relayout_phones(struct tinywl_server *server) {
+	struct tinywl_toplevel *t;
+	wl_list_for_each(t, &server->toplevels, link) {
+		if (t->is_phone) {
+			apply_video_layout(t);
+		}
+	}
+}
+
 static const char CAL_VERT_SRC[] =
 	"attribute vec2 pos;\n"
 	"varying vec2 v_uv;\n"
@@ -1489,6 +1506,7 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 			apply_video_layout(v);
 		}
 	}
+	relayout_phones(output->server);
 	apply_ui_layout(s);
 	if (s->backdrop) {
 		wlr_scene_rect_set_size(s->backdrop, s->width, s->height);
@@ -1680,6 +1698,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 			apply_video_layout(v);
 		}
 	}
+	relayout_phones(server);
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
@@ -1729,10 +1748,18 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		// "livi:<role>" title, untitled -> main).
 		const char *app_id = toplevel->xdg_toplevel->app_id;
 		const char *title = toplevel->xdg_toplevel->title;
-		bool is_ui = !(app_id && strcmp(app_id, "livi-video") == 0);
+		// phone-mirror window (scrcpy): interactive, placed like a plane. Match the
+		// SDL app_id or the title the launcher sets (SDL's app_id is not guaranteed).
+		bool is_phone = (app_id && strcmp(app_id, "scrcpy") == 0)
+			|| (title && strncmp(title, "livi:phone", 10) == 0);
+		bool is_ui = !is_phone && !(app_id && strcmp(app_id, "livi-video") == 0);
 		struct livi_screen *s = NULL;
 
-		if (is_ui) {
+		if (is_phone) {
+			toplevel->is_phone = true;
+			toplevel->is_video = false;
+			s = &server->screens[0];
+		} else if (is_ui) {
 			if (title && strncmp(title, "livi:", 5) == 0) {
 				s = screen_by_role(server, title + 5);
 			}
@@ -1781,13 +1808,19 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		}
 		toplevel->screen = s;
 		struct wlr_scene_tree *layer = toplevel->is_dialog ? server->layer_overlay
-			: toplevel->is_video ? server->layer_video : server->layer_ui;
+			: toplevel->is_video ? server->layer_video
+			: toplevel->is_phone ? (server->phone_above ? server->layer_overlay
+				: server->layer_phone)
+			: server->layer_ui;
 		wlr_scene_node_reparent(&toplevel->scene_tree->node, layer);
 		wlr_log(WLR_INFO, "livi: app_id='%s' title='%s' tag='%s' -> %s on screen '%s'",
 			app_id ? app_id : "(null)", title ? title : "(null)", toplevel->tag,
-			toplevel->is_dialog ? "dialog" : toplevel->is_video ? "video" : "ui", s->role);
+			toplevel->is_dialog ? "dialog"
+				: toplevel->is_video ? "video" : toplevel->is_phone ? "phone" : "ui", s->role);
 
-		if (toplevel->is_video) {
+		if (toplevel->is_video || toplevel->is_phone) {
+			// the phone window reuses the plane fitting (it has no crop) and
+			// mirrors the insets the host reports for the main video plane
 			apply_video_layout(toplevel);
 		} else {
 			apply_ui_layout(s);
@@ -2010,23 +2043,24 @@ static void spawn_startup(struct tinywl_server *server) {
 
 // Control socket (LIVI_COMPOSITOR_CTRL): line protocol from the host. Commands:
 //   screen <role> <0|1> | claim <tag> | videocfg <tag> <screen> <crop...>
-//   videoshow <tag> <0|1> | backdrop <r> <g> <b> | restart
+//   videoshow <tag> <0|1> | phoneorder <above|below> | backdrop <r> <g> <b> | restart
 struct livi_ctrl_client {
 	struct tinywl_server *server;
 	struct wl_event_source *source;
+	struct wl_list link;
 	int fd;
 	char buf[512];
 	size_t len;
 };
 
-// Send a line to the current control client (best-effort, non-blocking).
+// Send a line to every control client (best-effort, non-blocking).
 static void ctrl_send(struct tinywl_server *server, const char *line) {
-	if (server->ctrl_client_fd < 0) {
-		return;
+	struct livi_ctrl_client *c;
+	wl_list_for_each(c, &server->ctrl_clients, link) {
+		size_t n = strlen(line);
+		ssize_t w = write(c->fd, line, n);
+		(void)w;
 	}
-	size_t n = strlen(line);
-	ssize_t w = write(server->ctrl_client_fd, line, n);
-	(void)w;
 }
 
 // Fallback: if the inner UI never quits, SIGKILL it
@@ -2042,7 +2076,7 @@ static int restart_timeout(void *data) {
 }
 
 static void ctrl_handle_line(struct tinywl_server *server, const char *line) {
-	char tag[64], srole[32];
+	char tag[64], srole[32], sbuf[32];
 	double cl, ct, vw, vh, tw, th;
 	int onoff, swidth, sheight;
 
@@ -2135,6 +2169,28 @@ static void ctrl_handle_line(struct tinywl_server *server, const char *line) {
 				v->inset_r = ct;
 				apply_video_layout(v);
 			}
+			/* the phone-mirror window mirrors the same strip */
+			struct tinywl_toplevel *t;
+			wl_list_for_each(t, &server->toplevels, link) {
+				if (t->is_phone) {
+					t->inset_l = cl;
+					t->inset_r = ct;
+					apply_video_layout(t);
+				}
+			}
+		}
+		return;
+	}
+	if (sscanf(line, "phoneorder %31s", sbuf) == 1) {
+		/* scrcpy mirror: "above" (default) lets touches reach it; "below" puts
+		 * the UI on top so the on-screen keyboard is visible and clickable */
+		server->phone_above = strcmp(sbuf, "below") != 0;
+		struct tinywl_toplevel *t;
+		wl_list_for_each(t, &server->toplevels, link) {
+			if (t->is_phone) {
+				wlr_scene_node_reparent(&t->scene_tree->node,
+					server->phone_above ? server->layer_overlay : server->layer_phone);
+			}
 		}
 		return;
 	}
@@ -2223,9 +2279,7 @@ static int ctrl_client_readable(int fd, uint32_t mask, void *data) {
 	return 0;
 
 close_client:
-	if (c->server->ctrl_client_fd == c->fd) {
-		c->server->ctrl_client_fd = -1;
-	}
+	wl_list_remove(&c->link);
 	wl_event_source_remove(c->source);
 	close(fd);
 	free(c);
@@ -2260,7 +2314,7 @@ static int ctrl_accept(int fd, uint32_t mask, void *data) {
 	struct livi_ctrl_client *c = calloc(1, sizeof(*c));
 	c->server = server;
 	c->fd = client;
-	server->ctrl_client_fd = client;
+	wl_list_insert(&server->ctrl_clients, &c->link);
 	struct wl_event_loop *loop = wl_display_get_event_loop(server->wl_display);
 	c->source = wl_event_loop_add_fd(loop, client, WL_EVENT_READABLE,
 		ctrl_client_readable, c);
@@ -2270,7 +2324,7 @@ static int ctrl_accept(int fd, uint32_t mask, void *data) {
 
 static void ctrl_init(struct tinywl_server *server) {
 	server->ctrl_fd = -1;
-	server->ctrl_client_fd = -1;
+	wl_list_init(&server->ctrl_clients);
 	const char *path = getenv("LIVI_COMPOSITOR_CTRL");
 	if (!path || !*path) {
 		return;
@@ -2399,9 +2453,11 @@ int main(int argc, char *argv[]) {
 	// created in z-order: backdrop (bottom), video planes, UI, decoration, overlay (top)
 	server.layer_bg = wlr_scene_tree_create(&server.scene->tree);
 	server.layer_video = wlr_scene_tree_create(&server.scene->tree);
+	server.layer_phone = wlr_scene_tree_create(&server.scene->tree);
 	server.layer_ui = wlr_scene_tree_create(&server.scene->tree);
 	server.layer_deco = wlr_scene_tree_create(&server.scene->tree);
 	server.layer_overlay = wlr_scene_tree_create(&server.scene->tree);
+	server.phone_above = true;
 
 	wl_list_init(&server.toplevels);
 	wl_list_init(&server.videos);

@@ -43,7 +43,8 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
   // on, the rail slides away after a few seconds of inactivity wherever it would otherwise
   // sit over content, and floats out of the layout while it is gone, which hands the
   // content the full width.
-  const streamingRail = isStreaming && pathname === ROUTES.HOME && Boolean(settings?.navWhileStreaming)
+  const streamingRail =
+    isStreaming && pathname === ROUTES.HOME && Boolean(settings?.navWhileStreaming)
   const autoHideNav = Boolean(settings?.navAutoHide) && (inAutoHideNavPage || streamingRail)
   // A rail that is not shown while streaming at all (navWhileStreaming off) also floats,
   // which is upstream's full-bleed projection.
@@ -57,7 +58,7 @@ export const AppLayout: FC<PropsWithChildren<AppLayoutProps>> = ({
 
   const hideNav = hideNavHome || (autoHideNav && autoHiddenNav)
 
-  useReportVideoInsets(mainRef)
+  useReportVideoInsets(mainRef, Boolean(settings?.scrcpyMode))
 
   // Steering wheel position
   const isRhd = Number(settings?.hand ?? 0) === 1

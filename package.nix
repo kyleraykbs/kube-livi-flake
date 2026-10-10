@@ -74,6 +74,11 @@
   mesa,
   # packages.txt's bluetooth-SPA probe is pointed at pipewire's store path.
   pipewire,
+  # Runtime-only PATH entries for the launcher: scrcpy mode mirrors an
+  # adb-connected phone with `scrcpy`, which in turn shells out to `adb` from
+  # android-tools. Both are spawned by bare name from the main process.
+  scrcpy,
+  android-tools,
   # Bundle assembly: the decoder chain plus the host libs the committed
   # GStreamer bundle expects its environment to provide (see bundleLibs).
   libdrm,
@@ -411,7 +416,7 @@ EOF
     mkdir -p $out/bin
     cat > $out/bin/livi <<EOF
 #!${stdenv.shell}
-export PATH=${helperPython}/bin:\$PATH
+export PATH=${helperPython}/bin:${lib.makeBinPath [ scrcpy android-tools ]}:\$PATH
 exec ${electron_43}/bin/electron $out/lib/livi/resources/app.asar "\$@"
 EOF
     chmod 755 $out/bin/livi
