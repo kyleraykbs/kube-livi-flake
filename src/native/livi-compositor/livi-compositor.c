@@ -1012,9 +1012,10 @@ static void apply_video_layout(struct tinywl_toplevel *video) {
 	}
 }
 
-// Phone-mirror window (scrcpy): same box as the main video plane, but centred by
-// the size the client actually gives us - scrcpy/SDL sizes its own window and may
-// ignore a configure, so the position must not assume compliance.
+// Phone-mirror window (scrcpy): contained in the main video plane's box, centred.
+// scrcpy/SDL sizes its own window to the *output* and ignores a configure, so the
+// fitted size is forced onto the scene node (the surface's dest size) - that also
+// re-fits when the phone rotates, which the client only reports as a buffer change.
 static void apply_phone_layout(struct tinywl_toplevel *phone) {
 	struct livi_screen *s = phone->screen;
 	if (s == NULL || !phone->xdg_toplevel->base->initialized) {
@@ -1032,26 +1033,46 @@ static void apply_phone_layout(struct tinywl_toplevel *phone) {
 		aw = 1;
 		il = 0;
 	}
-	wlr_xdg_toplevel_set_size(phone->xdg_toplevel, aw, oh);
-
-	int cw = phone->xdg_toplevel->base->geometry.width;
-	int ch = phone->xdg_toplevel->base->geometry.height;
-	int x = s->x + il, y = top;
-	if (cw > 0 && ch > 0 && (cw < aw || ch < oh)) {
-		/* the client kept its own size: centre it in the box */
-		x = s->x + il + (aw - cw) / 2;
-		y = top + (oh - ch) / 2;
-		if (x < s->x) {
-			x = s->x;
+	/* content = what the client is actually showing (follows rotation) */
+	int cw = phone->xdg_toplevel->base->surface->current.width;
+	int ch = phone->xdg_toplevel->base->surface->current.height;
+	if (cw <= 0 || ch <= 0) {
+		cw = phone->xdg_toplevel->base->geometry.width;
+		ch = phone->xdg_toplevel->base->geometry.height;
+	}
+	if (cw <= 0 || ch <= 0) {
+		return;
+	}
+	double fit = fmin((double)aw / cw, (double)oh / ch);
+	int w = (int)lround(cw * fit);
+	int h = (int)lround(ch * fit);
+	if (w < 1) {
+		w = 1;
+	}
+	if (h < 1) {
+		h = 1;
+	}
+	/* ask for it (clients that honour the configure render natively) ... */
+	wlr_xdg_toplevel_set_size(phone->xdg_toplevel, w, h);
+	/* ... and force it on the scene node, whatever the client decided to be */
+	struct wlr_scene_node *child;
+	wl_list_for_each(child, &phone->scene_tree->children, link) {
+		if (child->type != WLR_SCENE_NODE_BUFFER) {
+			continue;
 		}
-		if (y < 0) {
-			y = 0;
+		struct wlr_scene_buffer *buf = wlr_scene_buffer_from_node(child);
+		struct wlr_scene_surface *ss = wlr_scene_surface_try_from_buffer(buf);
+		if (ss != NULL) {
+			wlr_scene_buffer_set_dest_size(ss->buffer, w, h);
+			break;
 		}
 	}
+	int x = s->x + il + (aw - w) / 2;
+	int y = top + (oh - h) / 2;
 	wlr_scene_node_set_position(&phone->scene_tree->node, x, y);
 	if (getenv("LIVI_DEBUG_LAYOUT") != NULL) {
-		wlr_log(WLR_INFO, "livi: phone %dx%d+%d+%d (box %dx%d, insets %d/%d)",
-			cw > 0 ? cw : aw, ch > 0 ? ch : oh, x, y, aw, oh, il, ir);
+		wlr_log(WLR_INFO, "livi: phone %dx%d -> %dx%d+%d+%d (box %dx%d, insets %d/%d)",
+			cw, ch, w, h, x, y, aw, oh, il, ir);
 	}
 }
 
