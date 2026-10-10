@@ -128,7 +128,12 @@ export class ScrcpySupervisor {
       // scrcpy >= 3 forwards audio by default (there is no --audio flag, only
       // --no-audio); the source is named explicitly so the car keeps playing the
       // phone's whole output through the head unit.
-      '--audio-source=output'
+      '--audio-source=output',
+      // Underruns (choppy audio) happen when the host cannot feed the sound card in
+      // time - worse on slow or loaded CPUs. The audio buffer is the jitter absorber
+      // (default 50ms): 400ms trades latency for reliability. Audio is the clock when
+      // audio forwarding is on, so this is also the mirror's A/V delay.
+      '--audio-buffer=400'
     ]
     console.log(`[Scrcpy] spawning scrcpy ${args.join(' ')}`)
     const child = spawn('scrcpy', args, {

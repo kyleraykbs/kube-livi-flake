@@ -73,6 +73,7 @@ describe('ScrcpySupervisor mirror lifecycle', () => {
     expect(spawned[0].cmd).toBe('scrcpy')
     expect(spawned[0].args).toContain('--window-title=livi:phone')
     expect(spawned[0].args).toContain('--audio-source=output')
+    expect(spawned[0].args).toContain('--audio-buffer=400')
     expect(spawned[0].options?.env).toEqual(
       expect.objectContaining({ ...process.env, SDL_VIDEODRIVER: 'wayland' })
     )
