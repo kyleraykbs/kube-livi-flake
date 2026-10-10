@@ -593,6 +593,9 @@ const CarplayComponent: React.FC<CarplayProps> = ({
 
   const inProjection = pathname === '/'
   const showProjectionOverlay = inProjection
+  // In scrcpy mode the mirror is a compositor-managed window in the video area, so
+  // this page must stay a transparent hole over it: no placeholder, no background.
+  const scrcpyMode = Boolean(settings?.scrcpyMode)
 
   const resolvedNegotiatedWidth = negotiatedWidth ?? 0
   const resolvedNegotiatedHeight = negotiatedHeight ?? 0
@@ -644,7 +647,12 @@ const CarplayComponent: React.FC<CarplayProps> = ({
       }}
     >
       {pathname === '/' && (
-        <StatusOverlay show={!receivingVideo} mode={mode} offsetX={overlayX} offsetY={overlayY} />
+        <StatusOverlay
+          show={!receivingVideo && !scrcpyMode}
+          mode={mode}
+          offsetX={overlayX}
+          offsetY={overlayY}
+        />
       )}
 
       <div
@@ -659,7 +667,9 @@ const CarplayComponent: React.FC<CarplayProps> = ({
           display: 'block',
           touchAction: 'none',
           backgroundColor:
-            receivingVideo && !rendererError ? 'transparent' : theme.palette.background.default,
+            scrcpyMode || (receivingVideo && !rendererError)
+              ? 'transparent'
+              : theme.palette.background.default,
           visibility: receivingVideo && !rendererError ? 'visible' : 'hidden',
           zIndex: receivingVideo && !rendererError ? 1 : -1,
           position: 'relative',
