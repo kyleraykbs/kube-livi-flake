@@ -126,7 +126,10 @@ export class ScrcpySupervisor {
     const args = [`--window-title=${WINDOW_TITLE}`]
     console.log(`[Scrcpy] spawning scrcpy ${args.join(' ')}`)
     const child = spawn('scrcpy', args, {
-      env: { ...process.env },
+      // SDL defaults to X11 whenever DISPLAY is set, which would put the mirror in a
+      // host window instead of the nested compositor. Force the Wayland backend so it
+      // lands in LIVI's phone layer (visible in the projection area, no second window).
+      env: { ...process.env, SDL_VIDEODRIVER: 'wayland' },
       stdio: ['ignore', 'pipe', 'pipe']
     })
     this._child = child

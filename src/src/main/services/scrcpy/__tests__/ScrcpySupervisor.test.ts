@@ -72,7 +72,9 @@ describe('ScrcpySupervisor mirror lifecycle', () => {
     expect(spawned).toHaveLength(1)
     expect(spawned[0].cmd).toBe('scrcpy')
     expect(spawned[0].args).toContain('--window-title=livi:phone')
-    expect(spawned[0].options?.env).toEqual(expect.objectContaining({ ...process.env }))
+    expect(spawned[0].options?.env).toEqual(
+      expect.objectContaining({ ...process.env, SDL_VIDEODRIVER: 'wayland' })
+    )
     expect(sup.state).toBe('starting')
 
     vi.advanceTimersByTime(2000)
