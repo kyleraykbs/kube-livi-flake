@@ -181,6 +181,8 @@ export class ProjectionService {
     emit: (p) => this.emitProjectionEvent(p),
     hasRenderer: () => this.webContents != null
   })
+  // while scrcpy mode is on the phone's BT is kept down (see syncScrcpyBt)
+  private scrcpyBtTimer: NodeJS.Timeout | null = null
   private readonly dongleState = new DongleState({
     emit: (p) => this.emitProjectionEvent(p),
     hasRenderer: () => this.webContents != null,
@@ -459,6 +461,7 @@ export class ProjectionService {
         this.planes.setVideoVisible(false)
       }
       this.syncHelperSupervisor()
+      this.syncScrcpyBt()
     }
 
     const prevClusterActive = isClusterDisplayed(prev)
@@ -1342,6 +1345,7 @@ export class ProjectionService {
     this.config = { ...this.config, ...patch }
     this.deviceController.resendReconnectTargets()
     this.syncHelperSupervisor()
+    this.syncScrcpyBt()
   }
 
   public markDongleConnected(connected: boolean): void {
@@ -1556,6 +1560,42 @@ export class ProjectionService {
       } catch (e) {
         console.warn('[ProjectionService] shutdown BT disconnect threw', e)
       }
+    }
+  }
+
+  // scrcpy mode: while the phone sees the car's Bluetooth, Android Auto on the phone
+  // keeps retrying its accessory handshake - which re-enumerates USB and drops the
+  // tethering link for a moment. Drop the phone's BT link, and keep dropping it: the
+  // phone reconnects on its own. Audio devices keep their link.
+  private async disconnectPhoneBt(): Promise<void> {
+    if (process.platform !== 'linux') return
+    let devices
+    try {
+      devices = await this.bluez.listPaired()
+    } catch {
+      return
+    }
+    for (const d of devices) {
+      if (!d.connected) continue
+      if (!isPhoneLikeCod(d.class)) continue
+      try {
+        console.log(`[ProjectionService] scrcpy mode: dropping phone BT ${d.mac}`)
+        await this.bluez.disconnect(d.mac)
+      } catch (e) {
+        console.warn('[ProjectionService] scrcpy-mode BT disconnect threw', e)
+      }
+    }
+  }
+
+  private syncScrcpyBt(): void {
+    const want = process.platform === 'linux' && this.config.scrcpyMode === true
+    if (want && this.scrcpyBtTimer === null) {
+      void this.disconnectPhoneBt()
+      this.scrcpyBtTimer = setInterval(() => void this.disconnectPhoneBt(), 20000)
+      this.scrcpyBtTimer.unref?.()
+    } else if (!want && this.scrcpyBtTimer !== null) {
+      clearInterval(this.scrcpyBtTimer)
+      this.scrcpyBtTimer = null
     }
   }
 

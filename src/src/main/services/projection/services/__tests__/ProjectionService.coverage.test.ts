@@ -3607,6 +3607,42 @@ describe('ProjectionService scrcpy mode gating', () => {
     expect(svc.planes.setVideoVisible).toHaveBeenCalledWith(true)
   })
 
+  test('scrcpy mode drops the phone BT link but leaves audio devices alone', async () => {
+    const svc = makeSvc()
+    svc.config = { ...svc.config, scrcpyMode: true }
+    // 0x5a020c = phone (telephony major class), 0x240404 = Audio/Video (a speaker)
+    svc.bluez.listPaired = vi.fn(async () => [
+      { mac: 'AA:BB:CC:DD:EE:01', connected: true, class: 0x5a020c },
+      { mac: 'AA:BB:CC:DD:EE:02', connected: true, class: 0x240404 },
+      { mac: 'AA:BB:CC:DD:EE:03', connected: false, class: 0x5a020c }
+    ])
+    svc.bluez.disconnect = vi.fn(async () => ({ ok: true }))
+
+    await svc.disconnectPhoneBt()
+
+    expect(svc.bluez.disconnect).toHaveBeenCalledWith('AA:BB:CC:DD:EE:01')
+    expect(svc.bluez.disconnect).not.toHaveBeenCalledWith('AA:BB:CC:DD:EE:02')
+    expect(svc.bluez.disconnect).not.toHaveBeenCalledWith('AA:BB:CC:DD:EE:03')
+  })
+
+  test('enabling scrcpy mode starts dropping the phone BT', async () => {
+    const svc = makeSvc()
+    svc.stop = vi.fn(async () => undefined)
+    svc.syncHelperSupervisor = vi.fn()
+    svc.disconnectPhone = vi.fn(async () => true)
+    svc.planes.setVideoVisible = vi.fn()
+    svc.bluez.listPaired = vi.fn(async () => [
+      { mac: 'AA:BB:CC:DD:EE:04', connected: true, class: 0x5a020c }
+    ])
+    svc.bluez.disconnect = vi.fn(async () => ({ ok: true }))
+
+    svc.onConfigChanged({ ...svc.config, scrcpyMode: true })
+
+    await vi.waitFor(() => expect(svc.bluez.disconnect).toHaveBeenCalledWith('AA:BB:CC:DD:EE:04'))
+    clearInterval(svc.scrcpyBtTimer)
+    svc.scrcpyBtTimer = null
+  })
+
   test('syncHelperSupervisor keeps the helper down in scrcpy mode', () => {
     const svc = makeSvc()
     svc.config = { ...svc.config, scrcpyMode: true }
