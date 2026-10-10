@@ -3524,6 +3524,12 @@ describe('ProjectionService last-mile coverage', () => {
 })
 
 describe('ProjectionService scrcpy mode gating', () => {
+  // earlier blocks leave process.platform as darwin; the Linux-only paths (helper,
+  // CarPlay listener, wireless AA) are exactly what this block gates
+  beforeEach(() => {
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+  })
+
   test('autoStartIfNeeded does not consult the arbiter while scrcpy mode owns the phone', async () => {
     const svc = makeSvc()
     // fresh object: svc.config aliases the shared DEFAULT_CONFIG, never mutate it
@@ -3583,5 +3589,30 @@ describe('ProjectionService scrcpy mode gating', () => {
     svc.syncHelperSupervisor()
 
     expect(svc.helperSupervisor).toBeNull()
+  })
+
+  test('scrcpy mode keeps the CarPlay listener and wireless AA down', () => {
+    const svc = makeSvc()
+    svc.config = { ...svc.config, scrcpyMode: true, wirelessAaEnabled: true }
+    svc.cpActive = false
+    svc.aaBtActive = false
+    svc.drivers.startCp = vi.fn()
+    svc.drivers.startAaWireless = vi.fn()
+
+    svc.syncHelperSupervisor()
+
+    expect(svc.drivers.startCp).not.toHaveBeenCalled()
+    expect(svc.drivers.startAaWireless).not.toHaveBeenCalled()
+  })
+
+  test('the CarPlay listener comes up without scrcpy mode (control)', () => {
+    const svc = makeSvc()
+    svc.config = { ...svc.config, scrcpyMode: false }
+    svc.cpActive = false
+    svc.drivers.startCp = vi.fn()
+
+    svc.syncHelperSupervisor()
+
+    expect(svc.drivers.startCp).toHaveBeenCalled()
   })
 })

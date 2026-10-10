@@ -208,7 +208,7 @@ export class ProjectionService {
     getDongleConnectedMac: () => this.dongleState.getConnectedMac(),
     getDongleDevList: () => this.dongleState.getDongleDevList(),
     emit: (p) => this.emitProjectionEvent(p),
-    autoConnect: () => this.config.autoConn !== false,
+    autoConnect: () => this.config.autoConn !== false && this.config.scrcpyMode !== true,
     pushReconnectTargets: (targets) => {
       this.drivers
         .getCpManager()
@@ -498,13 +498,16 @@ export class ProjectionService {
 
   private syncHelperSupervisor(): void {
     const linux = process.platform === 'linux'
-    const wantAaWireless = linux && this.config.wirelessAaEnabled === true
-    const wantCpWireless = linux && this.config.wirelessCpEnabled === true
+    // scrcpy mode owns the phone: no projection machinery of any kind comes up --
+    // not the helper, not the CarPlay listener, not the AA/CP wireless paths.
+    const scrcpy = this.config.scrcpyMode === true
+    const wantAaWireless = !scrcpy && linux && this.config.wirelessAaEnabled === true
+    const wantCpWireless = !scrcpy && linux && this.config.wirelessCpEnabled === true
     // Wired CP (carkit) always runs on Linux, like wired AA. Wireless (Wi-Fi AP +
     // BT profiles) is toggled live over the control socket; the helper process never
     // restarts for a wireless config change, so wired sessions survive the toggle.
-    const wantCp = linux
-    const want = !this.config.scrcpyMode && (wantAaWireless || wantCp)
+    const wantCp = !scrcpy && linux
+    const want = wantAaWireless || wantCp
     const enableKey = want ? 'h' : ''
     // The spawn env only carries the initial AA/CP wireless state; later changes go
     // over the control socket.
