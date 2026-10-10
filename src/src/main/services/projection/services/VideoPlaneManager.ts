@@ -45,8 +45,7 @@ export class VideoPlaneManager {
   private clusterVisible = false
   private clusterStreamActive: boolean | null = null
   // host-UI sidebar strip per window role (px), applied to that window's plane(s)
-  private readonly viewInsets: Partial<Record<ClusterScreen, { left: number; right: number }>> =
-    {}
+  private readonly viewInsets: Partial<Record<ClusterScreen, { left: number; right: number }>> = {}
 
   constructor(private readonly deps: VideoPlaneManagerDeps) {}
 

@@ -1,27 +1,6 @@
-import { connect } from 'node:net'
+import { sendCompositorLine } from '@main/app/compositorCtrl'
 import { registerIpcHandle } from '@main/ipc/register'
 import type { ScrcpySupervisor } from '@main/services/scrcpy/ScrcpySupervisor'
-
-/**
- * The native compositor classifies a toplevel titled "livi:phone" into its phone
- * layer. While the on-screen keyboard is up the UI must sit above that window or
- * the keyboard would be painted underneath the mirrored phone. Best-effort: the
- * control socket only exists inside compositor mode.
- */
-function sendCompositorLine(line: string): void {
-  const path = process.env.LIVI_COMPOSITOR_CTRL ?? ''
-  if (process.platform !== 'linux' || path.length === 0) return
-  try {
-    const sock = connect(path)
-    sock.on('error', () => {})
-    sock.on('connect', () => {
-      sock.write(line)
-      sock.end()
-    })
-  } catch {
-    // compositor gone; ordering will be reapplied on the next toggle
-  }
-}
 
 export function registerScrcpyIpc(supervisor: ScrcpySupervisor): void {
   registerIpcHandle('scrcpy-type', async (_evt, text: unknown) => {
@@ -34,6 +13,9 @@ export function registerScrcpyIpc(supervisor: ScrcpySupervisor): void {
     await supervisor.sendKey(keycode)
   })
 
+  // The mirror is classified into the compositor's phone layer; while the on-screen
+  // keyboard is up the UI must sit above it or the keyboard would be painted under
+  // the mirrored phone.
   registerIpcHandle('scrcpy-osk', async (_evt, open: unknown) => {
     sendCompositorLine(`phoneorder ${open === true ? 'below' : 'above'}\n`)
   })

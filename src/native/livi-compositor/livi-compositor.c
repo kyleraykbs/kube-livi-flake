@@ -1012,12 +1012,55 @@ static void apply_video_layout(struct tinywl_toplevel *video) {
 	}
 }
 
+// Phone-mirror window (scrcpy): same box as the main video plane, but centred by
+// the size the client actually gives us - scrcpy/SDL sizes its own window and may
+// ignore a configure, so the position must not assume compliance.
+static void apply_phone_layout(struct tinywl_toplevel *phone) {
+	struct livi_screen *s = phone->screen;
+	if (s == NULL || !phone->xdg_toplevel->base->initialized) {
+		return;
+	}
+	int top = screen_top_inset(s);
+	int ow = s->width, oh = s->height - top;
+	if (ow <= 0 || oh <= 0) {
+		return;
+	}
+	int il = phone->inset_l > 0 ? (int)lround(phone->inset_l) : 0;
+	int ir = phone->inset_r > 0 ? (int)lround(phone->inset_r) : 0;
+	int aw = ow - il - ir;
+	if (aw < 1) {
+		aw = 1;
+		il = 0;
+	}
+	wlr_xdg_toplevel_set_size(phone->xdg_toplevel, aw, oh);
+
+	int cw = phone->xdg_toplevel->base->geometry.width;
+	int ch = phone->xdg_toplevel->base->geometry.height;
+	int x = s->x + il, y = top;
+	if (cw > 0 && ch > 0 && (cw < aw || ch < oh)) {
+		/* the client kept its own size: centre it in the box */
+		x = s->x + il + (aw - cw) / 2;
+		y = top + (oh - ch) / 2;
+		if (x < s->x) {
+			x = s->x;
+		}
+		if (y < 0) {
+			y = 0;
+		}
+	}
+	wlr_scene_node_set_position(&phone->scene_tree->node, x, y);
+	if (getenv("LIVI_DEBUG_LAYOUT") != NULL) {
+		wlr_log(WLR_INFO, "livi: phone %dx%d+%d+%d (box %dx%d, insets %d/%d)",
+			cw > 0 ? cw : aw, ch > 0 ? ch : oh, x, y, aw, oh, il, ir);
+	}
+}
+
 // Re-fit phone-mirror windows: they track the main video plane's box and insets.
 static void relayout_phones(struct tinywl_server *server) {
 	struct tinywl_toplevel *t;
 	wl_list_for_each(t, &server->toplevels, link) {
 		if (t->is_phone) {
-			apply_video_layout(t);
+			apply_phone_layout(t);
 		}
 	}
 }
@@ -1759,6 +1802,13 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			toplevel->is_phone = true;
 			toplevel->is_video = false;
 			s = &server->screens[0];
+			/* the phone mirror shares the main video plane's reserved strip, so it
+			 * must pick up insets reported before this window existed */
+			struct livi_video_cfg *mcfg = cfg_for_tag(server, "main", false);
+			if (mcfg != NULL) {
+				toplevel->inset_l = mcfg->inset_l;
+				toplevel->inset_r = mcfg->inset_r;
+			}
 		} else if (is_ui) {
 			if (title && strncmp(title, "livi:", 5) == 0) {
 				s = screen_by_role(server, title + 5);
@@ -1818,10 +1868,10 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			toplevel->is_dialog ? "dialog"
 				: toplevel->is_video ? "video" : toplevel->is_phone ? "phone" : "ui", s->role);
 
-		if (toplevel->is_video || toplevel->is_phone) {
-			// the phone window reuses the plane fitting (it has no crop) and
-			// mirrors the insets the host reports for the main video plane
+		if (toplevel->is_video) {
 			apply_video_layout(toplevel);
+		} else if (toplevel->is_phone) {
+			apply_phone_layout(toplevel);
 		} else {
 			apply_ui_layout(s);
 		}
@@ -1850,6 +1900,13 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			wlr_scene_node_set_position(&toplevel->scene_tree->node,
 				x < s->x ? s->x : x, y < 0 ? 0 : y);
 		}
+	}
+
+	/* the mirror sizes its own window (SDL) and rotates with the phone, so
+	 * re-fit it on every commit, like the dialog centering above */
+	if (toplevel->is_phone && toplevel->screen != NULL
+			&& !toplevel->xdg_toplevel->base->initial_commit) {
+		apply_phone_layout(toplevel);
 	}
 }
 
