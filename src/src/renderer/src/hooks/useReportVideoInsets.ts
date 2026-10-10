@@ -21,28 +21,30 @@ export function useReportVideoInsets(
       let right = Math.max(0, Math.round(window.innerWidth - rect.right))
 
       // In scrcpy mode there is no full-bleed video plane, but the fixed mode switch
-      // sits on the rail strip. Measure the rail AND the switch cluster directly so
-      // the mirrored phone window stays clear of both (the cluster floats wider than
-      // the rail, so the rail width alone left its edge covered).
+      // sits at the top right while the rail is on its own side: measure BOTH so the
+      // mirrored phone window stays clear of each (the cluster floats wider than the
+      // rail, so a rail-width inset alone left its edge covered).
       if (scrcpyMode) {
         const navRect = document.getElementById('nav-root')?.getBoundingClientRect()
         const clusterRect = document.getElementById('scrcpy-cluster')?.getBoundingClientRect()
         const railWidth = navRect ? Math.max(0, Math.round(navRect.width)) : 0
         const CLUSTER_MARGIN = 8
-        if (clusterRect) {
-          const clusterOnLeft = clusterRect.left <= window.innerWidth - clusterRect.right
-          const clusterEdge = Math.round(
-            (clusterOnLeft ? clusterRect.right : window.innerWidth - clusterRect.left) +
-              CLUSTER_MARGIN
-          )
-          const strip = Math.max(railWidth, clusterEdge)
-          left = clusterOnLeft ? strip : 0
-          right = clusterOnLeft ? 0 : strip
-        } else if (navRect && railWidth > 0) {
-          const railOnLeft = navRect.left <= window.innerWidth - navRect.right
-          left = railOnLeft ? railWidth : 0
-          right = railOnLeft ? 0 : railWidth
-        } else if (left === 0 && right === 0) {
+        const navOnLeft = navRect ? navRect.left <= window.innerWidth - navRect.right : false
+        const clusterOnLeft = clusterRect
+          ? clusterRect.left <= window.innerWidth - clusterRect.right
+          : false
+        const clusterStrip = clusterRect
+          ? Math.round(
+              (clusterOnLeft ? clusterRect.right : window.innerWidth - clusterRect.left) +
+                CLUSTER_MARGIN
+            )
+          : 0
+        left =
+          (navRect && navOnLeft ? railWidth : 0) + (clusterRect && clusterOnLeft ? clusterStrip : 0)
+        right =
+          (navRect && !navOnLeft ? railWidth : 0) +
+          (clusterRect && !clusterOnLeft ? clusterStrip : 0)
+        if (left === 0 && right === 0) {
           return
         }
       }

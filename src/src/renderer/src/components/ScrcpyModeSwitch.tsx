@@ -22,9 +22,9 @@ export function ScrcpyModeSwitch() {
   const [keyboardOpen, setKeyboardOpen] = useState(false)
 
   const scrcpyMode = Boolean(settings?.scrcpyMode)
-  const isRhd = Number(settings?.hand ?? 0) === 1
-  // Pin the cluster over the nav rail strip: left for LHD, right for RHD.
-  const railOffset = isRhd ? { right: '16px' } : { left: '16px' }
+  // Pin the cluster to the top right, clear of the rail (and of the mirror, which
+  // the compositor insets around it).
+  const railOffset = { right: '16px' }
 
   const setOsk = useCallback((open: boolean) => {
     const scrcpy = window.scrcpy

@@ -123,7 +123,13 @@ export class ScrcpySupervisor {
 
   private _spawn(): void {
     if (!this._enabled || this._child) return
-    const args = [`--window-title=${WINDOW_TITLE}`]
+    const args = [
+      `--window-title=${WINDOW_TITLE}`,
+      // scrcpy >= 3 forwards audio by default (there is no --audio flag, only
+      // --no-audio); the source is named explicitly so the car keeps playing the
+      // phone's whole output through the head unit.
+      '--audio-source=output'
+    ]
     console.log(`[Scrcpy] spawning scrcpy ${args.join(' ')}`)
     const child = spawn('scrcpy', args, {
       // SDL defaults to X11 whenever DISPLAY is set, which would put the mirror in a
