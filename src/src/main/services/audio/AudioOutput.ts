@@ -21,6 +21,19 @@ export class AudioOutput {
   private static readonly MAX_QUEUED_MS = 1000
   private static readonly TARGET_QUEUED_MS = 500
 
+  // Drift compensation on top of the bound: steer the queue depth back
+  // to STEER_TARGET_MS by stretching/squeezing the PCM by at most
+  // MAX_RATIO_ADJ (0.5%, inaudible at these ratios) instead of letting
+  // the backlog grow until it has to be chopped. No correction inside
+  // the deadband, so ordinary audio passes through untouched.
+  private static readonly STEER_TARGET_MS = 300
+  private static readonly STEER_DEADBAND_MS = 50
+  private static readonly MAX_RATIO_ADJ = 0.005
+  // Correction gain: 1/60000 per ms of depth error means the equilibrium
+  // depth sits just past the deadband for realistic clock drift
+  // (e.g. 100ppm => ~56ms over target).
+  private static readonly STEER_GAIN_PER_MS = 1 / 60000
+
   private process: ChildProcessWithoutNullStreams | null = null
   private readonly sampleRate: number
   private readonly channels: number
@@ -162,8 +175,9 @@ export class AudioOutput {
       ? chunk
       : Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength)
 
-    this.queue.push(buf)
-    this.queuedBytes += buf.byteLength
+    const shaped = this.compensateDrift(buf)
+    this.queue.push(shaped)
+    this.queuedBytes += shaped.byteLength
 
     // Backlog bound: drop the oldest audio back down to the target depth.
     const maxQueued = AudioOutput.MAX_QUEUED_MS * this.bytesPerMs
@@ -201,6 +215,46 @@ export class AudioOutput {
     if (!this.writing) {
       this.flushQueue()
     }
+  }
+
+  /**
+   * Stretch or squeeze the chunk by a hair so the queue depth settles at
+   * STEER_TARGET_MS: the phone clock and the DAC clock disagree by tens
+   * of ppm and this absorbs the difference without drops. Returns the
+   * input untouched while the depth is inside the deadband.
+   */
+  private compensateDrift(buf: Buffer): Buffer {
+    const frameBytes = this.channels * 2
+    const inFrames = buf.byteLength / frameBytes
+    if (buf.byteLength % frameBytes !== 0 || inFrames < 2) return buf
+
+    const target = AudioOutput.STEER_TARGET_MS * this.bytesPerMs
+    const errorMs = (this.queuedBytes - target) / this.bytesPerMs
+    const beyond = Math.abs(errorMs) - AudioOutput.STEER_DEADBAND_MS
+    if (beyond <= 0) return buf
+
+    const adj = Math.min(beyond * AudioOutput.STEER_GAIN_PER_MS, AudioOutput.MAX_RATIO_ADJ)
+    // Deep queue => squeeze (fewer frames out); shallow => stretch.
+    const ratio = 1 - Math.sign(errorMs) * adj
+
+    if (buf.byteOffset % 2 !== 0) return buf
+    const src = new Int16Array(buf.buffer, buf.byteOffset, inFrames * this.channels)
+    const outFrames = Math.max(2, Math.round(inFrames * ratio))
+    const out = new Int16Array(outFrames * this.channels)
+    const step = (inFrames - 1) / (outFrames - 1)
+    for (let k = 0; k < outFrames; k++) {
+      const p = k * step
+      const i = Math.floor(p)
+      const frac = p - i
+      const j = Math.min(i + 1, inFrames - 1)
+      const a = i * this.channels
+      const b = j * this.channels
+      const o = k * this.channels
+      for (let c = 0; c < this.channels; c++) {
+        out[o + c] = Math.round(src[a + c] + (src[b + c] - src[a + c]) * frac)
+      }
+    }
+    return Buffer.from(out.buffer, out.byteOffset, out.byteLength)
   }
 
   /**
