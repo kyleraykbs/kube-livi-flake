@@ -1,3 +1,4 @@
+import { sendCompositorLine } from '@main/app/compositorCtrl'
 import { getSecondaryWindow } from '@main/window/secondaryWindows'
 import type { Config } from '@shared/types'
 import type { ClusterScreen } from '@shared/utils'
@@ -65,9 +66,17 @@ export class VideoPlaneManager {
   }
 
   private applyInsets(plane: GstVideo | null | undefined, role: ClusterScreen): void {
-    if (!plane) return
     const i = this.viewInsets[role]
-    plane.setViewInsets(i?.left ?? 0, i?.right ?? 0)
+    const left = i?.left ?? 0
+    const right = i?.right ?? 0
+    if (!plane) {
+      // No plane is running for this screen. That is the normal state in scrcpy mode
+      // (LIVI's own video plane never comes up), yet the compositor still needs the
+      // strip so the phone-mirror window stays clear of the rail and the mode switch.
+      if (role === 'main') sendCompositorLine(`videoinsets main ${left} ${right}\n`)
+      return
+    }
+    plane.setViewInsets(left, right)
   }
 
   dispose(): void {

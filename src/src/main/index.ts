@@ -64,11 +64,6 @@ if (bootstrapCompositor()) {
 
 app.whenReady().then(async () => {
   if (!bootAllowed) return
-  const projectionService = new ProjectionService()
-  const usbService = new USBService(projectionService)
-  const scrcpySupervisor = new ScrcpySupervisor()
-  const telemetryStore = new TelemetryStore()
-  const telemetrySocket = new TelemetrySocket(telemetryStore, 4000)
   const runtimeState: runtimeStateProps = {
     config: loadConfig(),
     telemetrySocket: null,
@@ -76,6 +71,15 @@ app.whenReady().then(async () => {
     suppressNextFsSync: false,
     wmExitedKiosk: false
   }
+  const projectionService = new ProjectionService()
+  // Load the config into the service BEFORE anything can scan USB: the startup scan
+  // fires markPhoneConnected, and a gate reading the default config at that instant
+  // would bring up the AOAP/AA path on a machine that saved scrcpy mode (tethering).
+  projectionService.applyConfigPatch(runtimeState.config)
+  const usbService = new USBService(projectionService)
+  const scrcpySupervisor = new ScrcpySupervisor()
+  const telemetryStore = new TelemetryStore()
+  const telemetrySocket = new TelemetrySocket(telemetryStore, 4000)
   setDebugLogging(runtimeState.config.debugLogging === true)
 
   runtimeState.telemetrySocket = telemetrySocket
@@ -174,7 +178,7 @@ app.whenReady().then(async () => {
     if (dismissed) saveSettings(runtimeState, { dismissedPackages: dismissed })
   }
 
-  projectionService.applyConfigPatch(runtimeState.config)
+  // config already applied right after construction (before the USB scan)
 
   // scrcpy mode: start/stop the mirror with the flag (the projection drivers
   // themselves are gated inside ProjectionService).

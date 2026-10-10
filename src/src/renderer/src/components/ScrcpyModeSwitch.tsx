@@ -63,6 +63,7 @@ export function ScrcpyModeSwitch() {
   return (
     <>
       <Paper
+        id="scrcpy-cluster"
         elevation={6}
         sx={{
           position: 'fixed',

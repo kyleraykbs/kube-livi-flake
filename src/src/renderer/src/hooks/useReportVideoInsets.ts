@@ -20,14 +20,25 @@ export function useReportVideoInsets(
       let left = Math.max(0, Math.round(rect.left))
       let right = Math.max(0, Math.round(window.innerWidth - rect.right))
 
-      // In scrcpy mode there is no full-bleed video plane, but the fixed mode switch sits
-      // on the rail strip. Measure the rail directly so the mirrored phone window always
-      // stays clear of it, even when the rail floats out of the layout (auto-hide, or a
-      // single tab). A 0/0 report would let the phone window cover the switch.
+      // In scrcpy mode there is no full-bleed video plane, but the fixed mode switch
+      // sits on the rail strip. Measure the rail AND the switch cluster directly so
+      // the mirrored phone window stays clear of both (the cluster floats wider than
+      // the rail, so the rail width alone left its edge covered).
       if (scrcpyMode) {
         const navRect = document.getElementById('nav-root')?.getBoundingClientRect()
+        const clusterRect = document.getElementById('scrcpy-cluster')?.getBoundingClientRect()
         const railWidth = navRect ? Math.max(0, Math.round(navRect.width)) : 0
-        if (navRect && railWidth > 0) {
+        const CLUSTER_MARGIN = 8
+        if (clusterRect) {
+          const clusterOnLeft = clusterRect.left <= window.innerWidth - clusterRect.right
+          const clusterEdge = Math.round(
+            (clusterOnLeft ? clusterRect.right : window.innerWidth - clusterRect.left) +
+              CLUSTER_MARGIN
+          )
+          const strip = Math.max(railWidth, clusterEdge)
+          left = clusterOnLeft ? strip : 0
+          right = clusterOnLeft ? 0 : strip
+        } else if (navRect && railWidth > 0) {
           const railOnLeft = navRect.left <= window.innerWidth - navRect.right
           left = railOnLeft ? railWidth : 0
           right = railOnLeft ? 0 : railWidth

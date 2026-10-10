@@ -449,11 +449,14 @@ export class ProjectionService {
     const prev = this.config
     this.config = { ...this.config, ...next }
 
-    // scrcpy mode: hand the phone back. Leave any live session and keep the
-    // wireless helper down (the scrcpy supervisor is driven by the bootstrap).
+    // scrcpy mode: hand the phone back. Leave any live session, tell the phone to
+    // drop AA/CP (so it does not stay in its car UI), keep the wireless helper and
+    // the video plane down. The scrcpy supervisor is driven by the bootstrap.
     if (this.config.scrcpyMode !== prev.scrcpyMode) {
       if (this.config.scrcpyMode) {
         this.stop().catch(() => {})
+        void this.disconnectPhone().catch(() => {})
+        this.planes.setVideoVisible(false)
       }
       this.syncHelperSupervisor()
     }
@@ -994,7 +997,8 @@ export class ProjectionService {
 
   // Renderer reports whether the projection screen is currently shown
   public setVideoVisible(visible: boolean): void {
-    this.planes.setVideoVisible(visible)
+    // scrcpy mode shows the mirror: LIVI's own video plane never becomes visible
+    this.planes.setVideoVisible(this.config.scrcpyMode === true ? false : visible)
   }
 
   // Renderer reports the sidebar strip its window's UI reserves (px per side), so the

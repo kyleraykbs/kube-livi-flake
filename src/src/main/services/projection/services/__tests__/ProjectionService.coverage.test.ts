@@ -3575,11 +3575,36 @@ describe('ProjectionService scrcpy mode gating', () => {
     const svc = makeSvc()
     svc.stop = vi.fn(async () => undefined)
     svc.syncHelperSupervisor = vi.fn()
+    svc.disconnectPhone = vi.fn(async () => true)
+    svc.planes.setVideoVisible = vi.fn()
 
     svc.onConfigChanged({ ...svc.config, scrcpyMode: true })
 
     expect(svc.stop).toHaveBeenCalled()
     expect(svc.syncHelperSupervisor).toHaveBeenCalled()
+    // tell the phone to drop AA/CP, and never show LIVI's own plane
+    expect(svc.disconnectPhone).toHaveBeenCalled()
+    expect(svc.planes.setVideoVisible).toHaveBeenCalledWith(false)
+  })
+
+  test('scrcpy mode keeps LIVI video plane invisible', () => {
+    const svc = makeSvc()
+    svc.config = { ...svc.config, scrcpyMode: true }
+    svc.planes.setVideoVisible = vi.fn()
+
+    svc.setVideoVisible(true)
+
+    expect(svc.planes.setVideoVisible).toHaveBeenCalledWith(false)
+  })
+
+  test('the video plane follows the renderer without scrcpy mode (control)', () => {
+    const svc = makeSvc()
+    svc.config = { ...svc.config, scrcpyMode: false }
+    svc.planes.setVideoVisible = vi.fn()
+
+    svc.setVideoVisible(true)
+
+    expect(svc.planes.setVideoVisible).toHaveBeenCalledWith(true)
   })
 
   test('syncHelperSupervisor keeps the helper down in scrcpy mode', () => {
