@@ -13,20 +13,31 @@ export interface AudioOutputOptions {
 export class AudioOutput {
   private static readonly STOP_GRACE_MS = 500
 
+  // Bound the JS-side backlog. The phone's media clock and the local DAC
+  // clock drift apart, so a strictly-fed queue grows forever (a long
+  // session ended up 10s behind live). On overflow the oldest audio is
+  // dropped back down to TARGET_QUEUED_MS: playback skips ahead instead
+  // of lagging ever more.
+  private static readonly MAX_QUEUED_MS = 1000
+  private static readonly TARGET_QUEUED_MS = 500
+
   private process: ChildProcessWithoutNullStreams | null = null
   private readonly sampleRate: number
   private readonly channels: number
+  private readonly bytesPerMs: number
   private readonly mode: 'music' | 'realtime'
   private device: string | undefined
 
   private bytesWritten = 0
   private queue: Buffer[] = []
+  private queuedBytes = 0
   private writing = false
   private writeSeq = 0
 
   constructor(opts: AudioOutputOptions) {
     this.sampleRate = opts.sampleRate
     this.channels = Math.max(1, opts.channels | 0)
+    this.bytesPerMs = (this.sampleRate * this.channels * 2) / 1000
     this.mode = opts.mode ?? AudioOutput.inferMode(this.sampleRate, this.channels)
     this.device = opts.device
 
@@ -69,6 +80,7 @@ export class AudioOutput {
 
     this.bytesWritten = 0
     this.queue = []
+    this.queuedBytes = 0
     this.writing = false
     this.writeSeq = 0
 
@@ -151,6 +163,26 @@ export class AudioOutput {
       : Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength)
 
     this.queue.push(buf)
+    this.queuedBytes += buf.byteLength
+
+    // Backlog bound: drop the oldest audio back down to the target depth.
+    const maxQueued = AudioOutput.MAX_QUEUED_MS * this.bytesPerMs
+    const targetQueued = AudioOutput.TARGET_QUEUED_MS * this.bytesPerMs
+    if (this.queuedBytes > maxQueued) {
+      const before = this.queuedBytes
+      while (this.queuedBytes > targetQueued && this.queue.length > 1) {
+        const dropped = this.queue.shift()!
+        this.queuedBytes -= dropped.byteLength
+      }
+      if (DEBUG) {
+        console.warn('[AudioOutput] queue overflow, dropped to target', {
+          ts: Date.now(),
+          mode: this.mode,
+          droppedBytes: before - this.queuedBytes,
+          queuedBytes: this.queuedBytes
+        })
+      }
+    }
 
     if (DEBUG) {
       this.writeSeq += 1
@@ -173,11 +205,16 @@ export class AudioOutput {
 
   /**
    * Graceful stop: close stdin so EOS propagates through the gst pipeline,
-   * letting pulsesink drain its tail.
+   * letting pulsesink drain its tail. Anything still queued on this side
+   * is discarded first — stopping must go quiet promptly (a pause used to
+   * play a 10s backlog out before silence).
    */
   stop(): void {
     if (!this.process) return
     const proc = this.process
+
+    this.queue = []
+    this.queuedBytes = 0
 
     this.endStdin(proc)
 
@@ -202,6 +239,7 @@ export class AudioOutput {
     const proc = this.process
     if (!proc || !proc.stdin || proc.stdin.destroyed) {
       this.queue = []
+      this.queuedBytes = 0
       this.writing = false
       return
     }
@@ -211,6 +249,7 @@ export class AudioOutput {
 
     while (this.queue.length > 0) {
       const buf = this.queue.shift()!
+      this.queuedBytes -= buf.byteLength
       const ok = stdin.write(buf)
       this.bytesWritten += buf.byteLength
 

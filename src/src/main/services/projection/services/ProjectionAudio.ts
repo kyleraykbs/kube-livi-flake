@@ -69,9 +69,12 @@ export class ProjectionAudio {
   private readonly musicRampUpMs = 1500
 
   // If we see a long gap between music chunks, we hard-reset the music
-  // AudioOutput to flush stale buffer state.
+  // AudioOutput to flush stale buffer state. A gap means the phone paused
+  // or changed tracks: whatever is still buffered is stale, and playing
+  // it out is what made a pause take 10s to be heard.
   private readonly musicGapResetMs = process.platform === 'darwin' ? 1000 : 500
   private lastMusicDataAt = 0
+  private musicGapTimer: NodeJS.Timeout | null = null
 
   // When to start the next music ramp
   private nextMusicRampStartAt = 0
@@ -239,6 +242,25 @@ export class ProjectionAudio {
       const now = Date.now()
       const logicalKey = this.getLogicalStreamKey(msg)
 
+      if (logicalKey === 'music') {
+        // Music is a continuous PCM flow, so a silent interval is a pause
+        // or a track change. The previous player still holds backlog
+        // audio: hard-reset it on the next chunk, and arm a watchdog that
+        // does the same when no next chunk ever arrives (phone-side pause
+        // without a stop command).
+        if (this.lastMusicDataAt > 0 && now - this.lastMusicDataAt > this.musicGapResetMs) {
+          if (DEBUG) {
+            console.debug('[ProjectionAudio] music gap, dropping stale player', {
+              gapMs: now - this.lastMusicDataAt
+            })
+          }
+          this.stopPlayerByKey(this.lastMusicPlayerKey)
+          this.lastMusicPlayerKey = null
+        }
+        this.lastMusicDataAt = now
+        this.armMusicGapWatchdog()
+      }
+
       // One player per (audioType, rate, channels); OS sink mixes parallel streams.
       const audioTypeKey = msg.audioType ?? 0
       let player = this.getAudioOutputForStream(logicalKey, audioTypeKey, msg)
@@ -264,8 +286,6 @@ export class ProjectionAudio {
         const sampleRate = meta?.frequency ?? 48000
         const channels = meta?.channel ?? 2
         const totalSamples = msg.data.length
-
-        this.lastMusicDataAt = now
 
         const gateUntil = Math.max(this.nextMusicRampStartAt, this.musicWarmupUntil)
         const isGatedMute = gateUntil > 0 && now < gateUntil
@@ -467,6 +487,7 @@ export class ProjectionAudio {
         this.musicFade.target = 1
         this.musicFade.remainingSamples = 0
         this.lastMusicDataAt = 0
+        this.cancelMusicGapWatchdog()
         this.musicGateMuted = true
         this.musicWarmupUntil = 0
         return
@@ -523,6 +544,7 @@ export class ProjectionAudio {
         this.musicFade.target = 1
         this.musicFade.remainingSamples = 0
         this.lastMusicDataAt = 0
+        this.cancelMusicGapWatchdog()
         this.musicGateMuted = false
         this.musicAudioType = null
 
@@ -685,6 +707,7 @@ export class ProjectionAudio {
   }
 
   private stopAllAudioPlayers() {
+    this.cancelMusicGapWatchdog()
     for (const player of this.audioPlayers.values()) {
       try {
         player.stop()
@@ -711,6 +734,32 @@ export class ProjectionAudio {
       // ignore
     }
     this.audioPlayers.delete(key)
+  }
+
+  // Fires when no music chunk arrived within the gap window (phone-side
+  // pause without a stop command): stop the player so playback goes quiet
+  // instead of draining the stale backlog.
+  private armMusicGapWatchdog(): void {
+    if (this.musicGapTimer) clearTimeout(this.musicGapTimer)
+    this.musicGapTimer = setTimeout(() => {
+      this.musicGapTimer = null
+      if (this.lastMusicDataAt > 0 && Date.now() - this.lastMusicDataAt >= this.musicGapResetMs) {
+        if (DEBUG) {
+          console.debug('[ProjectionAudio] music stream went silent, dropping stale player')
+        }
+        this.stopPlayerByKey(this.lastMusicPlayerKey)
+        this.lastMusicPlayerKey = null
+        this.lastMusicDataAt = 0
+      }
+    }, this.musicGapResetMs + 25)
+    this.musicGapTimer.unref?.()
+  }
+
+  private cancelMusicGapWatchdog(): void {
+    if (this.musicGapTimer) {
+      clearTimeout(this.musicGapTimer)
+      this.musicGapTimer = null
+    }
   }
 
   private createAndStartAudioPlayer(
